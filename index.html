@@ -82,7 +82,7 @@
 
 <script>
 // ====== CONFIG: your Apps Script Web App URL ======
-const API_URL = "https://script.google.com/macros/s/AKfycbyV_0F2AfWEDTlaHAtkgGpxZilsVdyjzNXQp3QuscMMKjsaQIYHMHGbz_exnu9yeQsE/exec";
+const API_URL = "https://script.google.com/a/macros/freshevents.asia/s/AKfycbyV_0F2AfWEDTlaHAtkgGpxZilsVdyjzNXQp3QuscMMKjsaQIYHMHGbz_exnu9yeQsE/exec";
 // ====================================================
 
 let paceChartInstance = null;
@@ -117,8 +117,9 @@ async function loadData(){
   document.getElementById('statusLine').textContent = "Loading live data…";
   try{
     const res = await fetch(API_URL + "?action=data");
-    rawRows = await res.json();
-    document.getElementById('statusLine').textContent = "Live — " + rawRows.length + " records · updated " + new Date().toLocaleTimeString();
+    const allRows = await res.json();
+    rawRows = allRows.filter(r => String(r['Year']) === '2026');
+    document.getElementById('statusLine').textContent = "Live — " + rawRows.length + " records (2026) · updated " + new Date().toLocaleTimeString();
   }catch(e){
     document.getElementById('statusLine').textContent = "Could not load data. Check the API URL / deployment.";
     rawRows = [];
