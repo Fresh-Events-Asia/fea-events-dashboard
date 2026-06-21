@@ -36,7 +36,9 @@
   button.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
   select{background:var(--panel-2);color:var(--text);border:1px solid var(--line);padding:7px 10px;border-radius:6px;font-size:13px;}
 
-  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:22px;}
+  .metrics{display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom:22px;}
+  @media (max-width:900px){ .metrics{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:480px){ .metrics{grid-template-columns:1fr;} }
   .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
   .metric .label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-dim);margin-bottom:6px;}
   .metric .val{font-size:22px;font-weight:700;}
@@ -524,23 +526,29 @@ function buildDailySeries(rows, year, cat){
   dated.sort((a,b)=>a.date-b.date);
   const start = dated.length?dated[0].date:new Date();
   const byDay = {};
+  let lastDayWithData = 0;
   dated.forEach(r=>{
     const d = Math.round((r.date-start)/(1000*60*60*24));
     byDay[d] = (byDay[d]||0)+r.tickets;
+    if(d > lastDayWithData) lastDayWithData = d;
   });
-  return byDay;
+  return {byDay, lastDayWithData, start};
 }
 
 function renderCumChart(rows, year, compareYear, cat){
   const years = compareYear ? [year, compareYear] : [year];
   document.getElementById('legendDaily1').innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}</span>`).join('');
   const seriesList = years.map(y=>buildDailySeries(rows, y, cat));
-  const maxDay = Math.max(1, ...seriesList.map(s=>Math.max(0,...Object.keys(s).map(Number))));
+  const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
-  const datasets = seriesList.map((byDay,i)=>{
+  const datasets = seriesList.map((s,i)=>{
     let cum=0;
-    const data = labels.map((_,d)=>{ cum += (byDay[d]||0); return cum; });
-    return {label:String(years[i]), data, borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15};
+    const data = labels.map((_,d)=>{
+      if(d > s.lastDayWithData) return null;
+      cum += (s.byDay[d]||0);
+      return cum;
+    });
+    return {label:String(years[i]), data, borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15, spanGaps:false};
   });
   const ctx = document.getElementById('cumChart');
   if(cumChartInstance) cumChartInstance.destroy();
@@ -551,11 +559,12 @@ function renderDailyDeltaChart(rows, year, compareYear, cat){
   const years = compareYear ? [year, compareYear] : [year];
   document.getElementById('legendDaily2').innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}</span>`).join('');
   const seriesList = years.map(y=>buildDailySeries(rows, y, cat));
-  const maxDay = Math.max(1, ...seriesList.map(s=>Math.max(0,...Object.keys(s).map(Number))));
+  const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
-  const datasets = seriesList.map((byDay,i)=>({
-    label:String(years[i]), data: labels.map((_,d)=>byDay[d]||0),
-    borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.2
+  const datasets = seriesList.map((s,i)=>({
+    label:String(years[i]),
+    data: labels.map((_,d)=> d > s.lastDayWithData ? null : (s.byDay[d]||0)),
+    borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.2, spanGaps:false
   }));
   const ctx = document.getElementById('dailyDeltaChart');
   if(dailyDeltaChartInstance) dailyDeltaChartInstance.destroy();
@@ -570,48 +579,42 @@ function chartOpts(){
 
 function renderPaceChart(rows, year){
   const yr = rows.filter(r=>String(r['Year'])===String(year));
-  const dated = yr.map(r=>({date:dayKey(r['Date cleaned (DD/MM/YYYY)']), tickets:parseInt(r['Ticket Count'])||0, phase:r['Phase']})).filter(r=>!isNaN(r.date));
+  const dated = yr.map(r=>({date:dayKey(r['Date cleaned (DD/MM/YYYY)']), tickets:parseInt(r['Ticket Count'])||0})).filter(r=>!isNaN(r.date));
   dated.sort((a,b)=>a.date-b.date);
   const start = dated.length?dated[0].date:new Date();
   const byDay = {};
+  let lastDayWithData = 0;
   dated.forEach(r=>{
     const d = Math.round((r.date-start)/(1000*60*60*24));
     byDay[d] = (byDay[d]||0)+r.tickets;
+    if(d>lastDayWithData) lastDayWithData = d;
   });
 
   const phases = (settingsData.phases||[]).filter(p=>p.name && p.start && p.end && p.target)
     .map(p=>({...p, startOffset:Math.round((new Date(p.start)-start)/(1000*60*60*24)), endOffset:Math.round((new Date(p.end)-start)/(1000*60*60*24))}))
     .sort((a,b)=>a.startOffset-b.startOffset);
 
-  const maxDay = Math.max(1, ...Object.keys(byDay).map(Number), ...phases.map(p=>p.endOffset));
-  const todayOffset = Math.round((new Date()-start)/(1000*60*60*24));
+  const maxDay = Math.max(1, lastDayWithData, ...phases.map(p=>p.endOffset));
 
+  // actual: only up to last day with real data, then stop (no flat trailing line)
   let cum = 0;
   const actual = [];
   for(let d=0; d<=maxDay; d++){
+    if(d > lastDayWithData){ actual.push(null); continue; }
     cum += (byDay[d]||0);
-    actual.push(d<=todayOffset ? cum : null);
+    actual.push(cum);
   }
 
-  // build target line phase by phase, each starting from where the PREVIOUS phase's target ended (monotonic, never decreases)
+  // target: PURE function of settings only \u2014 each phase contributes its own target, evenly split across its own days, stacked in sequence. Never references actual sales.
   const target = new Array(maxDay+1).fill(null);
-  let carryForwardTarget = null; // cumulative target value carried from previous phase
+  let runningTarget = 0;
   phases.forEach(phase=>{
-    let actualAtPhaseStart = 0;
-    for(let d=0; d<phase.startOffset; d++) actualAtPhaseStart += (byDay[d]||0);
-
-    // start point: previous phase's target endpoint, or actual-so-far if this is the first phase
-    let runningTarget = carryForwardTarget !== null ? carryForwardTarget : actualAtPhaseStart;
-    let soldSoFarInPhase = 0;
+    const phaseDays = Math.max(1, phase.endOffset - phase.startOffset + 1);
+    const dailyRate = parseFloat(phase.target)/phaseDays;
     for(let d=phase.startOffset; d<=phase.endOffset && d<=maxDay; d++){
-      const daysLeftInPhase = Math.max(1, phase.endOffset - d + 1);
-      const remaining = Math.max(0, parseFloat(phase.target) - soldSoFarInPhase);
-      const reqRate = remaining/daysLeftInPhase;
-      runningTarget += reqRate;
+      runningTarget += dailyRate;
       target[d] = runningTarget;
-      soldSoFarInPhase += (byDay[d]||0);
     }
-    carryForwardTarget = runningTarget;
   });
 
   const labels = actual.map((_,i)=>"Day "+i);
@@ -620,10 +623,29 @@ function renderPaceChart(rows, year){
   paceChartInstance = new Chart(ctx, {
     type:'line',
     data:{labels, datasets:[
-      {label:'Actual', data:actual, borderColor:'#378ADD', backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15, spanGaps:true},
-      {label:'Target pace', data:target, borderColor:'#FF6A3D', backgroundColor:'rgba(232,105,74,0.18)', borderWidth:2, borderDash:[6,4], pointRadius:0, tension:0, fill:'-1', spanGaps:true}
+      {label:'Actual', data:actual, borderColor:'#378ADD', backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15, spanGaps:false},
+      {label:'Target pace', data:target, borderColor:'#FF6A3D', backgroundColor:'rgba(232,105,74,0.18)', borderWidth:2, borderDash:[6,4], pointRadius:0, tension:0, fill:'-1', spanGaps:false}
     ]},
-    options:chartOpts()
+    options:{
+      responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            afterBody: function(items){
+              const d = items[0].dataIndex;
+              const a = actual[d], t = target[d];
+              if(a===null || t===null) return '';
+              const gap = a - t;
+              const sign = gap >= 0 ? '+' : '';
+              const label = gap >= 0 ? 'overachieving' : 'behind target';
+              return 'Gap: '+sign+fmtNum(gap)+' ('+label+')';
+            }
+          }
+        }
+      },
+      scales:{x:{ticks:{maxTicksLimit:10,color:'#8FA999'},grid:{display:false}}, y:{ticks:{color:'#8FA999'},grid:{color:'rgba(143,169,153,0.15)'}}}
+    }
   });
 }
 
@@ -661,7 +683,7 @@ function renderCohortTable(rows){
 
   let html = '<table><thead><tr><th>Cohort</th><th>Size</th>';
   for(let off=1; off<=maxOffset; off++){
-    html += `<th>Year ${off+1} of life</th>`;
+    html += `<th>Year ${off+1}</th>`;
   }
   html += '</tr></thead><tbody>';
 
