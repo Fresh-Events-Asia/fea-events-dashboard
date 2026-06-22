@@ -61,17 +61,19 @@
   .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
   .panel-head h2{margin:0;}
 
-  .brand-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px;}
+  .brand-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:700px){ .brand-grid{grid-template-columns:1fr;} }
   .brand-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;}
   .brand-card.empty{opacity:0.55;}
   .brand-card h3{margin:0 0 2px; font-size:17px;}
   .brand-card .yr{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
-  .brand-metric-row{display:grid; grid-template-columns:1fr auto; align-items:baseline; padding:6px 0; border-bottom:1px solid var(--line); gap:8px;}
+  .brand-metric-row{display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--line); gap:12px;}
   .brand-metric-row:last-child{border-bottom:none;}
-  .brand-metric-row .bl{font-size:12px; color:var(--text-dim);}
-  .brand-metric-row .bv{font-size:13px; font-weight:600; text-align:right; white-space:nowrap;}
-  .brand-metric-row .bd{font-size:10.5px; font-weight:600; margin-left:6px; white-space:nowrap;}
-  .brand-metric-row .bprev{font-size:10.5px; color:var(--text-dim); font-weight:400; margin-left:4px; white-space:nowrap;}
+  .brand-metric-row .bl{font-size:12px; color:var(--text-dim); flex-shrink:0;}
+  .brand-metric-row .bvals{display:flex; align-items:baseline; gap:5px; flex-wrap:nowrap;}
+  .brand-metric-row .bv{font-size:13.5px; font-weight:700; white-space:nowrap;}
+  .brand-metric-row .bd{font-size:10.5px; font-weight:600; white-space:nowrap;}
+  .brand-metric-row .bprev{font-size:10.5px; color:var(--text-dim); font-weight:400; white-space:nowrap;}
   .nodata-tag{display:inline-block; font-size:10.5px; background:var(--panel-2); color:var(--text-dim); padding:3px 9px; border-radius:20px; margin-top:6px;}
 
   details.settings{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:20px;}
@@ -306,8 +308,8 @@ function renderOverview(){
     const curr = computeBrandYearMetrics(rows, latestYear, b.key, data.settings);
     const prev = prevYear ? computeBrandYearMetrics(rows, prevYear, b.key, data.settings) : null;
     function row(label, currVal, prevVal, fmt){
-      const prevStr = (prevVal!==null && prevVal!==undefined) ? ' <span class="bprev">('+fmt(prevVal)+')</span>' : '';
-      return `<div class="brand-metric-row"><span class="bl">${label}</span><span style="text-align:right; white-space:nowrap;"><span class="bv">${fmt(currVal)}</span>${deltaSpan(currVal, prevVal)}${prevStr}</span></div>`;
+      const prevStr = (prevVal!==null && prevVal!==undefined) ? `<span class="bprev">(${fmt(prevVal)})</span>` : '';
+      return `<div class="brand-metric-row"><span class="bl">${label}</span><div class="bvals"><span class="bv">${fmt(currVal)}</span>${deltaSpan(currVal, prevVal)}${prevStr}</div></div>`;
     }
     grid.innerHTML += `<div class="brand-card">
       <h3>${b.label}</h3>
