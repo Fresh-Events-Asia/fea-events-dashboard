@@ -13,14 +13,23 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter','Segoe UI',Helvetica,Arial,sans-serif;}
-  .app{padding:28px 40px 64px; max-width:1280px; margin:0 auto;}
+  .app{padding:28px 40px 64px; max-width:1280px; margin:0 auto; padding-top:20px;}
   @media (max-width:680px){
-    .app{padding:18px 16px 48px;}
+    .app{padding:18px 16px 48px; padding-top:16px;}
     .target-grid{grid-template-columns:1fr;}
     .filter-row{gap:8px;}
   }
 
-  .nav{display:flex; align-items:center; gap:6px; margin-bottom:28px; border-bottom:1px solid var(--line); padding-bottom:14px; flex-wrap:wrap;}
+  .nav{display:flex; align-items:center; gap:6px; padding:14px 40px; border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:100; flex-wrap:wrap;}
+  .nav-links{display:flex; gap:6px; align-items:center; flex:1;}
+  .hamburger{display:none; background:transparent; border:none; color:var(--text); font-size:22px; cursor:pointer; padding:4px 8px; margin-left:auto;}
+  .nav-mobile-menu{display:none; flex-direction:column; gap:4px; padding:8px 0 4px; width:100%; border-top:1px solid var(--line); margin-top:8px;}
+  .nav-mobile-menu.open{display:flex;}
+  @media (max-width:600px){
+    .nav{padding:12px 16px; flex-wrap:wrap;}
+    .nav-links{display:none;}
+    .hamburger{display:block;}
+  }
   .nav-logo{height:32px; width:auto; object-fit:contain; margin-right:8px;}
   .nav-btn{background:transparent; border:none; color:var(--text-dim); padding:8px 14px; border-radius:7px; font-size:13.5px; font-weight:600; cursor:pointer;}
   .nav-btn.active{background:var(--panel); color:var(--text);}
@@ -108,9 +117,17 @@
 <div class="app">
 
   <div class="nav">
-    <button class="nav-btn active" id="navOverview" onclick="goPage('overview')">Overview</button>
-    <button class="nav-btn" id="navTSR" onclick="goPage('tsr')">The Sky Race</button>
-    <button class="nav-btn" id="navRL" onclick="goPage('rl')">REDLINE</button>
+    <div class="nav-links">
+      <button class="nav-btn active" id="navOverview" onclick="goPage('overview')">Overview</button>
+      <button class="nav-btn" id="navTSR" onclick="goPage('tsr')">The Sky Race</button>
+      <button class="nav-btn" id="navRL" onclick="goPage('rl')">REDLINE</button>
+    </div>
+    <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
+    <div class="nav-mobile-menu" id="mobileMenu">
+      <button class="nav-btn active" id="navOverviewM" onclick="goPage('overview');toggleMobileMenu()">Overview</button>
+      <button class="nav-btn" id="navTSRM" onclick="goPage('tsr');toggleMobileMenu()">The Sky Race</button>
+      <button class="nav-btn" id="navRLM" onclick="goPage('rl');toggleMobileMenu()">REDLINE</button>
+    </div>
   </div>
 
   <!-- ===================== OVERVIEW PAGE ===================== -->
@@ -151,13 +168,23 @@ let chartInstances = {}; // keyed by canvas id
 function fmtNum(n){ return Math.round(n).toLocaleString(); }
 function fmtMoney(n){ return 'RM' + Math.round(n).toLocaleString(); }
 
+function toggleMobileMenu(){
+  const menu = document.getElementById('mobileMenu');
+  menu.classList.toggle('open');
+}
+
 function goPage(p){
   document.getElementById('page-overview').style.display = p==='overview' ? '' : 'none';
   document.getElementById('page-tsr').style.display = p==='tsr' ? '' : 'none';
   document.getElementById('page-rl').style.display = p==='rl' ? '' : 'none';
-  document.getElementById('navOverview').classList.toggle('active', p==='overview');
-  document.getElementById('navTSR').classList.toggle('active', p==='tsr');
-  document.getElementById('navRL').classList.toggle('active', p==='rl');
+  ['navOverview','navTSR','navRL'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('active', id.toLowerCase().includes(p==='overview'?'overview':p==='tsr'?'tsr':'rl'));
+  });
+  ['navOverviewM','navTSRM','navRLM'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('active', id.toLowerCase().includes(p==='overview'?'overview':p==='tsr'?'tsr':'rl'));
+  });
 }
 
 async function fetchJSON(url, opts){ const res = await fetch(url, opts); return await res.json(); }
@@ -721,7 +748,7 @@ function renderSubEventTable(brandKey, rows, year, compareYear, settings){
 
   function rowHtml(label, currVal, cmpVal, isSubtotal, isPct, grandTotal, cmpGrandTotal){
     const style = isSubtotal ? 'font-weight:700; background:rgba(255,255,255,0.04);' : '';
-    const labelStyle = isPct ? 'color:var(--text-dim); font-size:12px; font-weight:700;' : '';
+    const labelStyle = isPct ? 'color:var(--text-dim); font-size:12px; font-weight:700; background:rgba(255,255,255,0.02);' : '';
     let cells = `<td style="${style} ${labelStyle}">${label}</td>`;
     if(isPct){
       const p = grandTotal ? (currVal/grandTotal*100).toFixed(0)+'%' : '—';
@@ -762,8 +789,11 @@ function renderSubEventTable(brandKey, rows, year, compareYear, settings){
   groupOrder.forEach(group=>{
     grouped[group].forEach(se=>{
       const d = curr[se]; const cd = cmp ? cmp[se] : null;
-      if(d && d.totalRegUnreg) grandCurr += d.totalRegUnreg;
-      if(cd && cd.totalRegUnreg) grandCmp += cd.totalRegUnreg;
+      const cv = d ? d.totalRegUnreg : 0;
+      const ccv = cd ? cd.totalRegUnreg : 0;
+      if(cv===0 && ccv===0) return;
+      if(cv) grandCurr += cv;
+      if(ccv) grandCmp += ccv;
     });
   });
 
@@ -774,6 +804,8 @@ function renderSubEventTable(brandKey, rows, year, compareYear, settings){
       const cd = cmp ? cmp[se] : null;
       const currVal = d ? d.totalRegUnreg : null;
       const cmpVal = cd ? cd.totalRegUnreg : null;
+      // skip rows where both years are zero or null
+      if((currVal===null||currVal===0) && (cmpVal===null||cmpVal===0)) return;
       if(currVal!==null) subtotalCurr += currVal;
       if(cmpVal!==null) subtotalCmp += cmpVal;
       html += rowHtml(se, currVal, cmpVal, false, false, 0, 0);
