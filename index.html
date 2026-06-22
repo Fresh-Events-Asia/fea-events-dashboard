@@ -393,7 +393,7 @@ function brandPageHTML(brandKey){
 
     <div class="panel"><h2>Phase performance</h2><div class="table-scroll" id="phaseTable_${brandKey}"></div></div>
 
-    <div class="panel"><h2>Sub-event breakdown (Reg + Unreg)</h2><div class="table-scroll" id="subEventTable_${brandKey}"></div></div>
+    <div class="panel" ${brandKey==='tmr' ? 'style="display:none;"' : ''}><h2>Sub-event breakdown (Reg + Unreg)</h2><div class="table-scroll" id="subEventTable_${brandKey}"></div></div>
 
     <div class="panel" id="cohortPanel_${brandKey}"><h2>Cohort retention</h2><div id="cohortTable_${brandKey}"></div></div>
 
