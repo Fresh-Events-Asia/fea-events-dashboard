@@ -119,6 +119,7 @@
 <div class="app">
 
   <div class="nav">
+    <div style="font-size:15px; font-weight:700; letter-spacing:0.02em; margin-right:12px; white-space:nowrap;">Fresh Events Dashboard</div>
     <div class="nav-links">
       <button class="nav-btn active" id="navOverview" onclick="goPage('overview')">Overview</button>
       <button class="nav-btn" id="navTSR" onclick="goPage('tsr')">The Sky Race</button>
@@ -134,7 +135,7 @@
 
   <!-- ===================== OVERVIEW PAGE ===================== -->
   <div id="page-overview">
-    <img src="images/FE_logo_Master_White%20BG_RGB_white%20text.png" alt="Fresh Events" style="height:80px; width:auto; object-fit:contain; display:block; margin-bottom:8px;">
+    <img src="images/FE_logo_Master_White%20BG_RGB_white%20text.png" alt="Fresh Events" style="height:80px; width:auto; object-fit:contain; display:block; margin-top:24px; margin-bottom:8px;">
     <div class="sub">All brands · most recent event year vs previous year</div>
     <div class="status"><span id="statusLineOverview">Loading…</span><button class="secondary" onclick="loadAll()">Refresh</button></div>
     <div class="filter-row" style="margin-bottom:16px;"><label style="margin:0;">Country</label><select id="countryFilterOverview"></select></div>
@@ -331,7 +332,7 @@ function brandPageHTML(brandKey){
   const label = BRANDS[brandKey].label;
   const logoFile = brandKey==='tsr' ? 'images/TRS_LOGO_TM.png' : 'images/RL_Horizontal%20Stack_Colour%20with%20White%20Text.png';
   return `
-    <img src="${logoFile}" alt="${label}" class="brand-logo">
+    <img src="${logoFile}" alt="${label}" class="brand-logo" style="margin-top:24px;">
     <div class="sub">Live data from Google Sheets · settings editable by anyone with this link</div>
     <div class="status"><span id="statusLine_${brandKey}">Loading…</span><button class="secondary" onclick="loadAll()">Refresh</button></div>
 
