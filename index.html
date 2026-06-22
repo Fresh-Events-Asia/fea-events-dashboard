@@ -574,18 +574,23 @@ function renderSRBody(brandKey){
   let runRateNeeded = null;
   let totalTarget = 0;
   let targetAchieved = false;
+  let saleEnded = false;
+  let shortBy = 0;
   if(showSettings && settings.eventDate){
     const phasesWithTarget = (settings.phases||[]).filter(p=>p.target);
     totalTarget = phasesWithTarget.reduce((a,p)=>a+(parseFloat(p.target)||0),0);
     if(totalTarget > 0){
       const today = new Date();
       const end = new Date(settings.eventDate);
-      const daysLeft = Math.max(1, Math.ceil((end-today)/(1000*60*60*24)));
+      saleEnded = today >= end;
+      const daysLeft = Math.ceil((end-today)/(1000*60*60*24));
       if(curr.totalTicketsRegUnreg >= totalTarget){
         targetAchieved = true;
         runRateNeeded = 0;
+      } else if(saleEnded){
+        shortBy = totalTarget - curr.totalTicketsRegUnreg;
       } else {
-        runRateNeeded = Math.max(0,(totalTarget-curr.totalTicketsRegUnreg))/daysLeft;
+        runRateNeeded = Math.max(0,(totalTarget-curr.totalTicketsRegUnreg))/Math.max(1,daysLeft);
       }
     }
   }
@@ -607,7 +612,7 @@ function renderSRBody(brandKey){
 
   const progressCard = pctToTarget!==null ? `<div class="metric"><div class="label">% to target (reg+unreg)</div><div class="val">${pctToTarget.toFixed(1)}%</div><div style="background:var(--panel-2);border-radius:4px;height:8px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:${pctToTarget}%;background:${pctToTarget>=100?'var(--good)':'var(--accent2)'};border-radius:4px;transition:width 0.4s;"></div></div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(curr.totalTicketsRegUnreg)} / ${fmtNum(totalTarget)}</div></div>` : '';
 
-  const runRateCard = showSettings ? `<div class="metric"><div class="label">Daily run rate needed (overall)</div><div class="val" style="color:${targetAchieved?'var(--good)':'var(--text)'}">${targetAchieved?'🎉 Target achieved!':runRateNeeded!==null?fmtNum(runRateNeeded)+'/day':'set phase targets'}</div></div>` : '';
+  const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Daily run rate needed (overall)'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
 
   metricsEl.innerHTML =
     card('Tickets sold (reg+unreg)', curr.totalTicketsRegUnreg, cmp?cmp.totalTicketsRegUnreg:null, fmtNum) +
