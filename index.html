@@ -220,6 +220,7 @@ async function loadAll(){
   renderOverview();
   renderBrandPage('tsr');
   renderBrandPage('rl');
+  renderBrandPage('tmr');
 }
 
 /* =================== SHARED CALC HELPERS =================== */
@@ -477,13 +478,13 @@ function renderBrandPage(brandKey){
   if(yrEl.value === "" && s.year) yrEl.value = s.year;
   if(brandKey==='tsr'){
     const mptEl = document.getElementById('membersPerTeam_tsr');
-    if(mptEl.value === "" && s.membersPerTeam) mptEl.value = s.membersPerTeam;
+    if(mptEl && mptEl.value === "" && s.membersPerTeam) mptEl.value = s.membersPerTeam;
   }
   if(brandKey==='rl'){
     const dmEl = document.getElementById('doublesMembers_rl');
-    if(dmEl.value === "" && s.doublesMembers) dmEl.value = s.doublesMembers;
+    if(dmEl && dmEl.value === "" && s.doublesMembers) dmEl.value = s.doublesMembers;
     const trmEl = document.getElementById('teamRelayMembers_rl');
-    if(trmEl.value === "" && s.teamRelayMembers) trmEl.value = s.teamRelayMembers;
+    if(trmEl && trmEl.value === "" && s.teamRelayMembers) trmEl.value = s.teamRelayMembers;
   }
   if(document.getElementById('phaseDefRows_'+brandKey).children.length === 0) renderPhaseDefRows(brandKey);
 
@@ -1316,10 +1317,13 @@ async function saveSettingsFor(brandKey){
 
   let settings = {eventDate, year, phases};
   if(brandKey==='tsr'){
-    settings.membersPerTeam = document.getElementById('membersPerTeam_tsr').value || 2;
+    const el = document.getElementById('membersPerTeam_tsr');
+    settings.membersPerTeam = el ? el.value || 2 : 2;
   } else if(brandKey==='rl'){
-    settings.doublesMembers = document.getElementById('doublesMembers_rl').value || 1;
-    settings.teamRelayMembers = document.getElementById('teamRelayMembers_rl').value || 3;
+    const dmEl = document.getElementById('doublesMembers_rl');
+    const trmEl = document.getElementById('teamRelayMembers_rl');
+    settings.doublesMembers = dmEl ? dmEl.value || 1 : 1;
+    settings.teamRelayMembers = trmEl ? trmEl.value || 3 : 3;
   }
 
   brandData[brandKey].settings = settings;
