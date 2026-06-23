@@ -110,7 +110,7 @@
   .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   @media (max-width:680px){ table{font-size:11px;} th{padding:0 3px 6px; font-size:9.5px;} td{padding:6px 3px;} }
 
-  .chart-wrap{position:relative;height:280px;}
+  .chart-wrap{position:relative;height:300px;}
   .filter-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
   .legend-row{display:flex; gap:18px; font-size:12px; color:var(--text-dim); margin-bottom:10px; flex-wrap:wrap;}
   .legend-row span{display:inline-flex; align-items:center; gap:6px;}
@@ -402,7 +402,6 @@ function brandPageHTML(brandKey){
       <summary>Event Settings</summary>
       <div class="settings-body">
         <div class="target-grid">
-          <div><label>Settings apply to year</label><input type="number" id="settingsYear_${brandKey}" placeholder="e.g. 2026" /></div>
           ${brandKey==='tsr' ? `<div><label>Additional members needed per team</label><input type="number" id="membersPerTeam_${brandKey}" placeholder="e.g. 2" /></div>` : ''}
           ${brandKey==='rl' ? `<div><label>Additional members needed (Doubles)</label><input type="number" id="doublesMembers_${brandKey}" placeholder="e.g. 1" /></div><div><label>Additional members needed (Team Relay)</label><input type="number" id="teamRelayMembers_${brandKey}" placeholder="e.g. 3" /></div>` : ''}        </div>
         <label style="margin-top:6px;">Phase definitions — name, date range, and ticket target (all required for run-rate and campaign days calc)</label>
@@ -439,8 +438,10 @@ function brandPageHTML(brandKey){
         <div class="filter-row"><label style="margin:0;">Category</label><select id="catFilter2_${brandKey}">${categoryOptions(brandKey)}</select></div>
       </div>
       <div class="legend-row" id="legendDaily2_${brandKey}"></div>
-      <div id="phaseLabels_${brandKey}" style="position:relative; height:20px; margin-bottom:4px; font-size:10px; overflow:hidden;"></div>
-      <div class="chart-wrap"><canvas id="dailyDeltaChart_${brandKey}"></canvas></div>
+      <div id="phaseLabels_${brandKey}" style="position:relative; height:24px; margin-bottom:4px; font-size:10px; overflow:hidden; min-width:900px;"></div>
+      <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+        <div style="min-width:900px;"><div class="chart-wrap"><canvas id="dailyDeltaChart_${brandKey}"></canvas></div></div>
+      </div>
     </div>
 
     <div class="panel" id="paceChartPanel_${brandKey}">
@@ -518,7 +519,6 @@ function renderBrandPage(brandKey){
   populateYearFilters(brandKey);
 
   const s = data.settings;
-  const yrEl = document.getElementById('settingsYear_'+brandKey);
   if(yrEl.value === "" && s.year) yrEl.value = s.year;
   if(brandKey==='tsr'){
     const mptEl = document.getElementById('membersPerTeam_tsr');
@@ -1547,7 +1547,6 @@ function renderPaceChart(brandKey, rows, year, settings){
 
 async function saveSettingsFor(brandKey){
   const statusId = brandKey==='tsr' ? 'saveStatusTSR' : 'saveStatusRL';
-  const year = document.getElementById('settingsYear_'+brandKey).value;
   const phases = [];
   let missingTarget = false;
   document.querySelectorAll('#phaseDefRows_'+brandKey+' .phase-def-row').forEach(row=>{
