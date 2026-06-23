@@ -107,7 +107,8 @@
   th:first-child,td:first-child{text-align:left;}
   td{padding:9px 0;border-bottom:1px solid var(--line);}
   tr:last-child td{border-bottom:none;}
-  .table-scroll{overflow-x:auto;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  @media (max-width:680px){ table{font-size:11px;} th{padding:0 3px 6px; font-size:9.5px;} td{padding:6px 3px;} }
 
   .chart-wrap{position:relative;height:280px;}
   .filter-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
@@ -141,7 +142,6 @@
     <img src="images/FE_logo_Master_White%20BG_RGB_white%20text.png" alt="Fresh Events" style="height:80px; width:auto; object-fit:contain; display:block; margin-top:24px; margin-bottom:8px;">
     <div class="sub">All brands · most recent event year vs previous year</div>
     <div class="status"><span id="statusLineOverview">Loading…</span><button class="secondary" onclick="loadAll()">Refresh</button></div>
-    <div class="filter-row" style="margin-bottom:16px;"><label style="margin:0;">Country</label><select id="countryFilterOverview"></select></div>
     <div class="brand-grid" id="brandGrid"></div>
   </div>
 
@@ -305,10 +305,6 @@ function populateCountryFilter(selectEl, rows){
 }
 
 function renderOverview(){
-  const allRowsCombined = Object.values(brandData).flatMap(d=>d.rows);
-  populateCountryFilter(document.getElementById('countryFilterOverview'), allRowsCombined);
-  const countryVal = document.getElementById('countryFilterOverview').value;
-
   const brandList = [
     {key:'tsr', label:'The Sky Race'},
     {key:'rl', label:'REDLINE'},
@@ -324,21 +320,46 @@ function renderOverview(){
       grid.innerHTML += `<div class="brand-card empty"><h3>${b.label}</h3><span class="nodata-tag">No data yet</span></div>`;
       return;
     }
-    const rows = countryVal==='all' ? data.rows : data.rows.filter(r=>r['Country']===countryVal);
-    if(rows.length === 0) return; // hide if no data for selected country
 
-    const years = [...new Set(rows.map(r=>getEventYear(r)))].sort();
+    const countries = [...new Set(data.rows.map(r=>r['Country']).filter(Boolean))].sort();
+    const defaultCountry = countries.includes('Malaysia') ? 'Malaysia' : 'all';
+    const countryId = `overviewCountry_${b.key}`;
+    const existingEl = document.getElementById(countryId);
+    const selectedCountry = existingEl ? existingEl.value : defaultCountry;
+    const countryOpts = '<option value="all">All</option>' + countries.map(c=>`<option value="${c}"${c===selectedCountry?' selected':''}>${c}</option>`).join('');
+
+    const filteredRows = selectedCountry==='all' ? data.rows : data.rows.filter(r=>r['Country']===selectedCountry);
+    const years = [...new Set(data.rows.map(r=>getEventYear(r)))].sort();
     const latestYear = years[years.length-1];
     const prevYear = years.length>1 ? years[years.length-2] : null;
-    const curr = computeBrandYearMetrics(rows, latestYear, b.key, data.settings);
-    const prev = prevYear ? computeBrandYearMetrics(rows, prevYear, b.key, data.settings) : null;
+
+    const currRows = filteredRows.filter(r=>getEventYear(r)===String(latestYear));
+    const prevRows = prevYear ? filteredRows.filter(r=>getEventYear(r)===String(prevYear)) : null;
+
+    if(currRows.length === 0){
+      grid.innerHTML += `<div class="brand-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="margin:0;">${b.label}</h3>
+          <select id="${countryId}" onchange="renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
+        </div>
+        <span class="nodata-tag">No data for selected country</span>
+      </div>`;
+      return;
+    }
+
+    const curr = computeBrandYearMetrics(currRows, latestYear, b.key, data.settings);
+    const prev = prevRows && prevRows.length>0 ? computeBrandYearMetrics(prevRows, prevYear, b.key, data.settings) : null;
+
     function row(label, currVal, prevVal, fmt){
-      const prevStr = (prevVal!==null && prevVal!==undefined) ? `<span class="bprev">(${fmt(prevVal)})</span>` : '';
+      const prevStr = (prevVal!==null && prevVal!==undefined) ? ` <span class="bprev">(${fmt(prevVal)})</span>` : '';
       return `<div class="brand-metric-row"><span class="bl">${label}</span><div class="bvals"><span class="bv">${fmt(currVal)}</span>${deltaSpan(currVal, prevVal)}${prevStr}</div></div>`;
     }
     grid.innerHTML += `<div class="brand-card">
-      <h3>${b.label}</h3>
-      <div class="yr">${latestYear}${prevYear ? ' vs '+prevYear : ' (no prior year)'}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <h3 style="margin:0;">${b.label}</h3>
+        <select id="${countryId}" onchange="renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
+      </div>
+      <div class="yr">${latestYear}${prevYear?' vs '+prevYear:' (no prior year)'}</div>
       ${row('Tickets sold (reg+unreg)', curr.totalTicketsRegUnreg, prev?prev.totalTicketsRegUnreg:null, fmtNum)}
       ${row('Registered tickets', curr.regTickets, prev?prev.regTickets:null, fmtNum)}
       ${row('Total revenue', curr.totalRev, prev?prev.totalRev:null, fmtMoney)}
@@ -348,7 +369,6 @@ function renderOverview(){
   });
 }
 
-document.getElementById('countryFilterOverview').addEventListener('change', renderOverview);
 
 /* =================== BRAND PAGE (shared for TSR & RL) =================== */
 
@@ -361,14 +381,21 @@ function brandPageHTML(brandKey){
     <div class="status"><span id="statusLine_${brandKey}">Loading…</span><button class="secondary" onclick="loadAll()">Refresh</button></div>
 
     <div style="margin-bottom:14px;">
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
-        <label style="margin:0; font-size:12px; color:var(--text-dim);">Viewing event year</label><select id="yearFilter_${brandKey}"></select>
-        <label style="margin:0 0 0 8px; font-size:12px; color:var(--text-dim);">Compare event year</label><select id="compareYearFilter_${brandKey}"></select>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label style="margin:0; font-size:12px; color:var(--text-dim);">Viewing event year</label><select id="yearFilter_${brandKey}"></select>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label style="margin:0; font-size:12px; color:var(--text-dim);">Compare event year</label><select id="compareYearFilter_${brandKey}"></select>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label style="margin:0; font-size:12px; color:var(--text-dim);">Viewing country</label><select id="countryFilter_${brandKey}"></select>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <label style="margin:0; font-size:12px; color:var(--text-dim);">Compare country</label><select id="compareCountryFilter_${brandKey}"></select>
+        </div>
       </div>
-      <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
-        <label style="margin:0; font-size:12px; color:var(--text-dim);">Country</label><select id="countryFilter_${brandKey}"></select>
-      </div>
-      <p style="font-size:11px; color:var(--text-dim); margin:0; font-style:italic;">* Year refers to the event year (from Event Name), not the calendar year of registration. A ticket sold in Dec 2026 for a 2027 event appears under 2027.</p>
+      <p style="font-size:11px; color:var(--text-dim); margin:0; font-style:italic;">* Year refers to the event year (from Event Name), not the calendar year of registration.</p>
     </div>
 
     <details class="settings" id="settingsPanel_${brandKey}">
@@ -395,6 +422,8 @@ function brandPageHTML(brandKey){
     <div class="panel"><h2>Phase performance</h2><div class="table-scroll" id="phaseTable_${brandKey}"></div></div>
 
     <div class="panel" ${brandKey==='tmr' ? 'style="display:none;"' : ''}><h2>Sub-event breakdown (Reg + Unreg)</h2><div class="table-scroll" id="subEventTable_${brandKey}"></div></div>
+
+    <div class="panel" ${brandKey==='tmr' ? 'style="display:none;"' : ''}><h2>Category by phase</h2><div class="table-scroll" id="catPhaseTable_${brandKey}"></div></div>
 
     <div class="panel" id="cohortPanel_${brandKey}"><h2>Cohort retention</h2><div id="cohortTable_${brandKey}"></div></div>
 
@@ -465,6 +494,7 @@ function initBrandPage(brandKey){
   document.getElementById('yearFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('compareYearFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('countryFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
+  document.getElementById('compareCountryFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter1_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter2_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('audienceCatFilter_'+brandKey).addEventListener('change', ()=>{
@@ -487,6 +517,7 @@ function renderBrandPage(brandKey){
   document.getElementById('statusLine_'+brandKey).textContent = "Live — " + data.rows.length + " records · updated " + new Date().toLocaleTimeString();
 
   populateCountryFilter(document.getElementById('countryFilter_'+brandKey), data.rows);
+  populateCountryFilter(document.getElementById('compareCountryFilter_'+brandKey), data.rows);
   populateYearFilters(brandKey);
 
   const s = data.settings;
@@ -510,8 +541,9 @@ function renderBrandPage(brandKey){
 }
 
 function srRowsFor(brandKey){
-  const countryVal = document.getElementById('countryFilter_'+brandKey).value;
-  return brandRowsFor(brandKey, countryVal);
+  const data = brandData[brandKey];
+  if(!data) return [];
+  return data.rows; // country filtering handled per-pair in renderSRBody
 }
 
 function populateYearFilters(brandKey){
@@ -559,17 +591,26 @@ function filteredByCategory(rows, cat){
 }
 
 function renderSRBody(brandKey){
-  const rows = srRowsFor(brandKey);
+  const rows = srRowsFor(brandKey); // all rows, unfiltered by country
   if(rows.length===0) return;
   const year = document.getElementById('yearFilter_'+brandKey).value;
   const compareYear = document.getElementById('compareYearFilter_'+brandKey).value;
+  const country = document.getElementById('countryFilter_'+brandKey).value;
+  const compareCountry = document.getElementById('compareCountryFilter_'+brandKey).value;
+
+  // filter rows by year+country for each view
+  function filterRows(yr, ctry){
+    return rows.filter(r=>getEventYear(r)===String(yr) && (ctry==='all'||r['Country']===ctry));
+  }
+  const viewRows = filterRows(year, country);
+  const cmpRows = compareYear ? filterRows(compareYear, compareCountry) : null;
   const showSettings = isLatestYear(brandKey, year);
   document.getElementById('settingsPanel_'+brandKey).style.display = showSettings ? '' : 'none';
   document.getElementById('paceChartPanel_'+brandKey).style.display = showSettings ? '' : 'none';
 
   const settings = brandData[brandKey].settings;
-  const curr = computeBrandYearMetrics(rows, year, brandKey, settings);
-  const cmp = compareYear ? computeBrandYearMetrics(rows, compareYear, brandKey, settings) : null;
+  const curr = computeBrandYearMetrics(viewRows, year, brandKey, settings);
+  const cmp = (compareYear && cmpRows) ? computeBrandYearMetrics(cmpRows, compareYear, brandKey, settings) : null;
   const avgPriceCurr = curr.regTickets ? curr.totalRev/curr.regTickets : 0;
   const avgPriceCmp = cmp && cmp.regTickets ? cmp.totalRev/cmp.regTickets : null;
 
@@ -627,19 +668,20 @@ function renderSRBody(brandKey){
     progressCard +
     runRateCard;
 
-  renderPhaseTable(brandKey, rows, year, compareYear);
-  renderSubEventTable(brandKey, rows, year, compareYear, settings);
-  renderCohortTable(brandKey, rows);
-  renderAudienceProfile(brandKey, rows, year, compareYear);
-  renderCumChart(brandKey, rows, year, compareYear, document.getElementById('catFilter1_'+brandKey).value);
-  renderDailyDeltaChart(brandKey, rows, year, compareYear, document.getElementById('catFilter2_'+brandKey).value);
-  if(showSettings) renderPaceChart(brandKey, rows, year, settings);
+  renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear);
+  renderSubEventTable(brandKey, viewRows, cmpRows, year, compareYear, settings);
+  renderCatPhaseTable(brandKey, viewRows, year);
+  renderCohortTable(brandKey, rows, country);
+  renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear);
+  renderCumChart(brandKey, rows, year, compareYear, document.getElementById('catFilter1_'+brandKey).value, country, compareCountry);
+  renderDailyDeltaChart(brandKey, rows, year, compareYear, document.getElementById('catFilter2_'+brandKey).value, country, compareCountry);
+  if(showSettings) renderPaceChart(brandKey, viewRows, year, settings);
 }
 
 /* ---- Phase performance table ---- */
 
 function computePhaseBreakdown(rows, year){
-  const yr = rows.filter(r=>getEventYear(r)===String(year));
+  const yr = rows; // rows are already filtered by year+country
   const phases = {};
   yr.forEach(r=>{
     const p = r['Phase']; if(!p) return;
@@ -652,9 +694,9 @@ function computePhaseBreakdown(rows, year){
   return phases;
 }
 
-function renderPhaseTable(brandKey, rows, year, compareYear){
-  const phases = computePhaseBreakdown(rows, year);
-  const cmpPhases = compareYear ? computePhaseBreakdown(rows, compareYear) : null;
+function renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear){
+  const phases = computePhaseBreakdown(viewRows, year);
+  const cmpPhases = (compareYear && cmpRows) ? computePhaseBreakdown(cmpRows, compareYear) : null;
   const allNames = new Set(Object.keys(phases));
   if(cmpPhases) Object.keys(cmpPhases).forEach(n=>allNames.add(n));
   const names = [...allNames].sort((a,b)=>{
@@ -691,7 +733,7 @@ function renderPhaseTable(brandKey, rows, year, compareYear){
 /* ---- Sub-event breakdown table (reg+unreg, per sub-event) ---- */
 
 function computeSubEventBreakdown(rows, year, brandKey, settings){
-  const yr = rows.filter(r=>getEventYear(r)===String(year));
+  const yr = rows; // rows are already filtered by year+country
   const subEvents = {};
   const isOne = v => v===1 || v==='1' || v===true || Number(v)===1;
   const teamCatField = brandKey==='tsr' ? 'Team Category' : 'Double/ Team Category';
@@ -748,9 +790,9 @@ function computeSubEventBreakdown(rows, year, brandKey, settings){
   return subEvents;
 }
 
-function renderSubEventTable(brandKey, rows, year, compareYear, settings){
-  const curr = computeSubEventBreakdown(rows, year, brandKey, settings);
-  const cmp = compareYear ? computeSubEventBreakdown(rows, compareYear, brandKey, settings) : null;
+function renderSubEventTable(brandKey, viewRows, cmpRows, year, compareYear, settings){
+  const curr = computeSubEventBreakdown(viewRows, year, brandKey, settings);
+  const cmp = (compareYear && cmpRows) ? computeSubEventBreakdown(cmpRows, compareYear, brandKey, settings) : null;
   const allNames = new Set(Object.keys(curr));
   if(cmp) Object.keys(cmp).forEach(n=>allNames.add(n));
   const names = [...allNames].sort();
@@ -869,6 +911,81 @@ function renderSubEventTable(brandKey, rows, year, compareYear, settings){
   document.getElementById('subEventTable_'+brandKey).innerHTML = html;
 }
 
+/* ---- Category × Phase breakdown table ---- */
+
+function renderCatPhaseTable(brandKey, rows, year){
+  const container = document.getElementById('catPhaseTable_'+brandKey);
+  if(!container) return;
+
+  // define categories per brand
+  const categories = brandKey==='tsr' ? ['Individual','Team'] : ['Singles','Doubles','Team Relay'];
+
+  // get all phases in order from this year's data
+  const phaseFirstDate = {};
+  rows.forEach(r=>{
+    const p = r['Phase']; if(!p) return;
+    const d = new Date(r['Date cleaned (DD/MM/YYYY)']);
+    if(isNaN(d)) return;
+    if(!phaseFirstDate[p] || d < phaseFirstDate[p]) phaseFirstDate[p] = d;
+  });
+  const phases = Object.entries(phaseFirstDate)
+    .sort((a,b)=>a[1]-b[1])
+    .map(([name])=>name);
+
+  if(!phases.length){
+    container.innerHTML = '<p style="color:var(--text-dim); font-size:13px;">No phase data found.</p>';
+    return;
+  }
+
+  // build data: category → phase → ticket count
+  const data = {};
+  categories.forEach(cat=>{ data[cat] = {}; phases.forEach(p=>{ data[cat][p] = 0; }); });
+
+  rows.forEach(r=>{
+    const cat = r['Category']; 
+    const phase = r['Phase'];
+    if(!cat || !phase) return;
+    // map category
+    let mappedCat = null;
+    if(brandKey==='tsr'){
+      if(cat==='Individual') mappedCat = 'Individual';
+      else if(cat==='Team') mappedCat = 'Team';
+    } else if(brandKey==='rl'){
+      if(cat==='Singles') mappedCat = 'Singles';
+      else if(cat==='Doubles') mappedCat = 'Doubles';
+      else if(cat==='Team Relay') mappedCat = 'Team Relay';
+    }
+    if(!mappedCat || !data[mappedCat] || !phases.includes(phase)) return;
+    data[mappedCat][phase] += parseInt(r['Ticket Count'])||0;
+  });
+
+  // build table — rows = categories, columns = phases
+  let html = '<table><thead><tr><th>Category</th>';
+  phases.forEach(p=>{ html += `<th>${p}</th>`; });
+  html += '<th>Total</th></tr></thead><tbody>';
+
+  categories.forEach(cat=>{
+    const row = data[cat];
+    const total = phases.reduce((a,p)=>a+(row[p]||0),0);
+    if(total===0) return;
+    html += `<tr><td>${cat}</td>`;
+    phases.forEach(p=>{ html += `<td style="text-align:right">${row[p]?fmtNum(row[p]):'—'}</td>`; });
+    html += `<td style="text-align:right; font-weight:600;">${fmtNum(total)}</td></tr>`;
+  });
+
+  // totals row
+  html += '<tr style="font-weight:700; background:rgba(255,255,255,0.04);"><td>Total</td>';
+  let grandTotal = 0;
+  phases.forEach(p=>{
+    const colTotal = categories.reduce((a,cat)=>a+(data[cat][p]||0),0);
+    grandTotal += colTotal;
+    html += `<td style="text-align:right">${fmtNum(colTotal)}</td>`;
+  });
+  html += `<td style="text-align:right">${fmtNum(grandTotal)}</td></tr>`;
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
 /* ---- Gender category breakdown (Mixed/Women/Men) ---- */
 
 function computeGenderBreakdown(rows, year, brandKey){
@@ -943,12 +1060,12 @@ const AGE_RANGES = [
 ];
 const PIE_COLORS = ['#378ADD','#FF6A3D','#6FCF97','#C77DFF','#F2C94C','#E8694A','#4A6657','#56CCF2','#EB5757','#27AE60'];
 
-function renderAudienceProfile(brandKey, rows, year, compareYear){
+function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
   const audienceCat = document.getElementById('audienceCatFilter_'+brandKey) ? document.getElementById('audienceCatFilter_'+brandKey).value : 'all';
-  const filterRows = r => audienceCat==='all' || r['Category']===audienceCat;
+  const filterCat = r => audienceCat==='all' || r['Category']===audienceCat;
 
-  const yr = rows.filter(r=>getEventYear(r)===String(year) && filterRows(r));
-  const cmpYr = compareYear ? rows.filter(r=>getEventYear(r)===String(compareYear) && filterRows(r)) : null;
+  const yr = viewRows.filter(filterCat);
+  const cmpYr = (compareYear && cmpRows) ? cmpRows.filter(filterCat) : null;
   const hasCompare = !!cmpYr && cmpYr.length > 0;
 
   function getGenderMap(data){
@@ -1105,6 +1222,9 @@ function renderAudienceProfile(brandKey, rows, year, compareYear){
     natDatasets.push({label:String(compareYear), data:cmpNatVals, backgroundColor:'#4A6657', borderRadius:4});
   }
 
+  const cmpNatTotal = hasCompare ? Object.values(cmpNatMap).reduce((a,b)=>a+b,0) : 0;
+  const natTotals = [natTotal, cmpNatTotal];
+
   chartInstances['nationalityChart_'+brandKey] = new Chart(nCtx, {
     type:'bar',
     data:{labels:natLabels, datasets:natDatasets},
@@ -1113,7 +1233,10 @@ function renderAudienceProfile(brandKey, rows, year, compareYear){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{display:hasCompare, labels:{color:'#EAF2EC', font:{size:11}, boxWidth:12}},
-        tooltip:{callbacks:{label: ctx=>` ${ctx.dataset.label}: ${fmtNum(ctx.parsed.x)} (${natTotal?(ctx.parsed.x/natTotal*100).toFixed(1):0}%)`}}
+        tooltip:{callbacks:{label: ctx=>{
+          const total = natTotals[ctx.datasetIndex] || natTotal;
+          return ` ${ctx.dataset.label}: ${fmtNum(ctx.parsed.x)} (${total?(ctx.parsed.x/total*100).toFixed(1):0}%)`;
+        }}}
       },
       scales:{
         x:{ticks:{color:'#8FA999', callback:v=>fmtNum(v)}, grid:{color:'rgba(143,169,153,0.15)'}},
@@ -1125,54 +1248,54 @@ function renderAudienceProfile(brandKey, rows, year, compareYear){
 
 /* ---- Cohort retention ---- */
 
-function renderCohortTable(brandKey, rows){
+function renderCohortTable(brandKey, rows, country){
+  const filteredRows = country && country!=='all' ? rows.filter(r=>r['Country']===country) : rows;
   const emailKey = 'Unique Email ID';
-  const hasEmail = rows.some(r => r[emailKey]);
+  const hasEmail = filteredRows.some(r => r[emailKey]);
   const container = document.getElementById('cohortTable_'+brandKey);
   if(!hasEmail){
     container.innerHTML = '<p style="color:var(--text-dim); font-size:13px;">No "Unique Email ID" column found in this data.</p>';
     return;
   }
   const firstSeen = {};
-  rows.forEach(r=>{
+  const emailsByYear = {};
+  filteredRows.forEach(r=>{
     const email = r[emailKey];
     const yr = parseInt(getEventYear(r));
     if(!email || !yr) return;
     if(!firstSeen[email] || yr < firstSeen[email]) firstSeen[email] = yr;
-  });
-  const emailsByYear = {};
-  rows.forEach(r=>{
-    const email = r[emailKey];
-    const yr = parseInt(getEventYear(r));
-    if(!email || !yr) return;
     if(!emailsByYear[yr]) emailsByYear[yr] = new Set();
     emailsByYear[yr].add(email);
   });
   const allYears = Object.keys(emailsByYear).map(Number).sort((a,b)=>a-b);
-  const cohortYears = allYears;
   const maxOffset = allYears.length - 1;
 
-  let html = '<table><thead><tr><th>Cohort</th><th>Size</th>';
+  let html = '<div class="table-scroll"><table><thead><tr><th>Cohort</th><th>Total that year</th><th>New (cohort)</th>';
   for(let off=1; off<=maxOffset; off++){
-    html += `<th>Year ${off+1}</th>`;
+    html += `<th>Year ${off+1}</th><th>%</th>`;
   }
   html += '</tr></thead><tbody>';
 
-  cohortYears.forEach(cy=>{
-    const cohortEmails = [...emailsByYear[cy]].filter(e => firstSeen[e] === cy);
+  allYears.forEach(cy=>{
+    const totalThatYear = emailsByYear[cy] ? emailsByYear[cy].size : 0;
+    const cohortEmails = [...(emailsByYear[cy]||[])].filter(e => firstSeen[e] === cy);
     const size = cohortEmails.length;
-    if(size === 0) return;
-    html += `<tr><td>${cy}</td><td style="text-align:right">${fmtNum(size)}</td>`;
+    if(totalThatYear === 0) return;
+    html += `<tr><td>${cy}</td><td style="text-align:right">${fmtNum(totalThatYear)}</td><td style="text-align:right">${fmtNum(size)}</td>`;
     for(let off=1; off<=maxOffset; off++){
       const targetYear = cy + off;
-      if(!allYears.includes(targetYear)){ html += '<td style="text-align:right">—</td>'; continue; }
-      const retained = cohortEmails.filter(e => emailsByYear[targetYear].has(e)).length;
+      if(!allYears.includes(targetYear)){
+        html += '<td style="text-align:right">—</td><td>—</td>';
+        continue;
+      }
+      const retained = size > 0 ? cohortEmails.filter(e => emailsByYear[targetYear].has(e)).length : 0;
       const p = size ? (retained/size*100) : 0;
-      html += `<td style="text-align:right">${targetYear}: ${fmtNum(retained)} (${p.toFixed(0)}%)</td>`;
+      html += `<td style="text-align:right">${fmtNum(retained)}</td><td style="text-align:right">${p.toFixed(0)}%</td>`;
     }
     html += '</tr>';
   });
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
+  html += '<p style="font-size:11px; color:var(--text-dim); margin-top:8px; font-style:italic;">* Based on identified Unique Email ID only. Tickets with blank email IDs are excluded.</p>';
   container.innerHTML = html;
 }
 
@@ -1181,7 +1304,7 @@ function renderCohortTable(brandKey, rows){
 function dayKey(dateStr){ return new Date(dateStr); }
 
 function buildDailySeries(rows, year, cat){
-  const yr = filteredByCategory(rows.filter(r=>getEventYear(r)===String(year)), cat);
+  const yr = filteredByCategory(rows, cat); // rows already filtered by year+country
   const dated = yr.map(r=>({date:dayKey(r['Date cleaned (DD/MM/YYYY)']), tickets:parseInt(r['Ticket Count'])||0})).filter(r=>!isNaN(r.date));
   dated.sort((a,b)=>a.date-b.date);
   const start = dated.length?dated[0].date:new Date();
@@ -1277,10 +1400,14 @@ function destroyChart(id){
   if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
-function renderCumChart(brandKey, rows, year, compareYear, cat){
+function renderCumChart(brandKey, rows, year, compareYear, cat, country, compareCountry){
   const years = compareYear ? [year, compareYear] : [year];
-  document.getElementById('legendDaily1_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}</span>`).join('');
-  const seriesList = years.map(y=>buildDailySeries(rows, y, cat));
+  const countries = compareYear ? [country, compareCountry] : [country];
+  document.getElementById('legendDaily1_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}${countries[i]!=='all'?' ('+countries[i]+')':''}</span>`).join('');
+  const seriesList = years.map((y,i)=>{
+    const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
+    return buildDailySeries(filtered, y, cat);
+  });
   const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
   const datasets = seriesList.map((s,i)=>{
@@ -1297,10 +1424,14 @@ function renderCumChart(brandKey, rows, year, compareYear, cat){
   chartInstances[id] = new Chart(document.getElementById(id), {type:'line', data:{labels,datasets}, options:chartOpts()});
 }
 
-function renderDailyDeltaChart(brandKey, rows, year, compareYear, cat){
+function renderDailyDeltaChart(brandKey, rows, year, compareYear, cat, country, compareCountry){
   const years = compareYear ? [year, compareYear] : [year];
-  document.getElementById('legendDaily2_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}</span>`).join('');
-  const seriesList = years.map(y=>buildDailySeries(rows, y, cat));
+  const countries = compareYear ? [country, compareCountry] : [country];
+  document.getElementById('legendDaily2_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}${countries[i]!=='all'?' ('+countries[i]+')':''}</span>`).join('');
+  const seriesList = years.map((y,i)=>{
+    const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
+    return buildDailySeries(filtered, y, cat);
+  });
   const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
   const datasets = seriesList.map((s,i)=>({
