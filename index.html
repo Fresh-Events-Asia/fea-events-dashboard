@@ -1567,7 +1567,7 @@ async function saveSettingsFor(brandKey){
     return;
   }
 
-  let settings = {year, phases};
+  let settings = {phases};
   if(brandKey==='tsr'){
     const el = document.getElementById('membersPerTeam_tsr');
     settings.membersPerTeam = el ? el.value || 2 : 2;
