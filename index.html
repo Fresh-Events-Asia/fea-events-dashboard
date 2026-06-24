@@ -566,7 +566,12 @@ function brandPageHTML(brandKey){
         <div style="position:relative; height:240px;"><canvas id="genderPieChart_${brandKey}"></canvas></div>
       </div>
       <div class="panel" style="margin-bottom:0;">
-        <h2>Age</h2>
+        <div class="panel-head" style="margin-bottom:12px;">
+          <h2 style="margin:0;">Age</h2>
+          <select id="ageGenderFilter_${brandKey}" style="font-size:12px; padding:3px 6px;">
+            <option value="all">All</option><option value="M">Male</option><option value="F">Female</option>
+          </select>
+        </div>
         <div style="position:relative; height:240px;"><canvas id="agePieChart_${brandKey}"></canvas></div>
       </div>
       <div class="panel" style="margin-bottom:0;">
@@ -576,7 +581,9 @@ function brandPageHTML(brandKey){
       <div class="panel" style="margin-bottom:0;">
         <div class="panel-head" style="margin-bottom:12px;">
           <h2 style="margin:0;">State (Top 10)</h2>
-          <select id="stateCatFilter_${brandKey}" style="font-size:12px; padding:3px 6px;">${categoryOptions(brandKey)}</select>
+          <select id="stateAgeFilter_${brandKey}" style="font-size:12px; padding:3px 6px;">
+            <option value="all">All</option><option value="<18">&lt;18</option><option value="18-24">18-24</option><option value="25-34">25-34</option><option value="35-44">35-44</option><option value="45-54">45-54</option><option value="55+">55+</option>
+          </select>
         </div>
         <div style="position:relative; height:240px;"><canvas id="stateChart_${brandKey}"></canvas></div>
       </div>
@@ -600,7 +607,7 @@ function initBrandPage(brandKey){
   document.getElementById('catFilter2_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('subEventDateFrom_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('subEventDateTo_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
-  document.getElementById('audienceCatFilter_'+brandKey).addEventListener('change', ()=>{
+  function reRenderAudience(){
     const allRows = srRowsFor(brandKey);
     const year = document.getElementById('yearFilter_'+brandKey).value;
     const compareYear = document.getElementById('compareYearFilter_'+brandKey).value;
@@ -610,18 +617,10 @@ function initBrandPage(brandKey){
     const viewRows = filterRows(year, country);
     const cmpRows = compareYear ? filterRows(compareYear, compareCountry) : null;
     try{ renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear); }catch(e){ console.error('renderAudienceProfile',e); }
-  });
-  document.getElementById('stateCatFilter_'+brandKey).addEventListener('change', ()=>{
-    const allRows = srRowsFor(brandKey);
-    const year = document.getElementById('yearFilter_'+brandKey).value;
-    const compareYear = document.getElementById('compareYearFilter_'+brandKey).value;
-    const country = document.getElementById('countryFilter_'+brandKey).value;
-    const compareCountry = document.getElementById('compareCountryFilter_'+brandKey).value;
-    function filterRows(yr, ctry){ return allRows.filter(r=>getEventYear(r)===String(yr)&&(ctry==='all'||r['Country']===ctry)); }
-    const viewRows = filterRows(year, country);
-    const cmpRows = compareYear ? filterRows(compareYear, compareCountry) : null;
-    try{ renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear); }catch(e){ console.error('renderAudienceProfile',e); }
-  });
+  }
+  document.getElementById('audienceCatFilter_'+brandKey).addEventListener('change', reRenderAudience);
+  document.getElementById('stateAgeFilter_'+brandKey).addEventListener('change', reRenderAudience);
+  document.getElementById('ageGenderFilter_'+brandKey).addEventListener('change', reRenderAudience);
 }
 
 let pageInitialized = {tsr:false, rl:false, tmr:false};
@@ -1342,10 +1341,18 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     });
   }
 
-  // ---- Age chart ----
-  const aLabels = AGE_RANGES.map(r=>r.label).filter((_,i)=>ageCounts[i]>0||(cmpAgeCounts&&cmpAgeCounts[i]>0));
-  const aIdxs = AGE_RANGES.map((_,i)=>i).filter(i=>ageCounts[i]>0||(cmpAgeCounts&&cmpAgeCounts[i]>0));
-  const aVals = aIdxs.map(i=>ageCounts[i]);
+  // ---- Age chart (filtered by gender) ----
+  const ageGenderEl = document.getElementById('ageGenderFilter_'+brandKey);
+  const ageGender = ageGenderEl ? ageGenderEl.value : 'all';
+  const filterAgeGender = r => ageGender==='all' || (r['Sex']||'').toString().trim().toUpperCase()===ageGender;
+  const ageYr = yr.filter(filterAgeGender);
+  const ageCmpYr = cmpYr ? cmpYr.filter(filterAgeGender) : null;
+  const ageCountsFiltered = getAgeCounts(ageYr);
+  const cmpAgeCountsFiltered = ageCmpYr ? getAgeCounts(ageCmpYr) : null;
+
+  const aLabels = AGE_RANGES.map(r=>r.label).filter((_,i)=>ageCountsFiltered[i]>0||(cmpAgeCountsFiltered&&cmpAgeCountsFiltered[i]>0));
+  const aIdxs = AGE_RANGES.map((_,i)=>i).filter(i=>ageCountsFiltered[i]>0||(cmpAgeCountsFiltered&&cmpAgeCountsFiltered[i]>0));
+  const aVals = aIdxs.map(i=>ageCountsFiltered[i]);
   const aTotal = aVals.reduce((a,b)=>a+b,0);
   const aCtx = document.getElementById('agePieChart_'+brandKey);
   destroyChart('agePieChart_'+brandKey);
@@ -1356,7 +1363,7 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
       options: doughnutOpts(aTotal)
     });
   } else {
-    const cmpAVals = aIdxs.map(i=>cmpAgeCounts[i]||0);
+    const cmpAVals = aIdxs.map(i=>(cmpAgeCountsFiltered||[])[i]||0);
     const cmpATotal = cmpAVals.reduce((a,b)=>a+b,0);
     chartInstances['agePieChart_'+brandKey] = new Chart(aCtx, {
       type:'bar',
@@ -1415,7 +1422,7 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     }
   });
 
-  // ---- State chart ----
+  // ---- State chart (filtered by age group) ----
   function getStateMap(data){
     const m = {};
     data.forEach(r=>{
@@ -1426,12 +1433,18 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     return m;
   }
 
-  // State chart uses its own category filter
-  const stateCatEl = document.getElementById('stateCatFilter_'+brandKey);
-  const stateCat = stateCatEl ? stateCatEl.value : 'all';
-  const filterStateCat = r => stateCat==='all' || r['Category']===stateCat;
-  const stateYr = viewRows.filter(filterStateCat);
-  const cmpStateYr = (compareYear && cmpRows) ? cmpRows.filter(filterStateCat) : null;
+  const stateAgeEl = document.getElementById('stateAgeFilter_'+brandKey);
+  const stateAge = stateAgeEl ? stateAgeEl.value : 'all';
+  const filterStateAge = r => {
+    if(stateAge==='all') return true;
+    const age = parseInt(r['Age']);
+    if(isNaN(age)) return false;
+    const range = AGE_RANGES.find(ar=>ar.label===stateAge);
+    if(!range) return false;
+    return age>=range.min && age<=range.max;
+  };
+  const stateYr = viewRows.filter(filterStateAge);
+  const cmpStateYr = (compareYear && cmpRows) ? cmpRows.filter(filterStateAge) : null;
 
   const stateMap = getStateMap(stateYr);
   const cmpStateMap = cmpStateYr ? getStateMap(cmpStateYr) : null;
