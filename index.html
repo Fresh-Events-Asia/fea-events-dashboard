@@ -531,8 +531,11 @@ function brandPageHTML(brandKey){
 
     <div class="panel">
       <div class="panel-head">
-        <h2>Cumulative daily tickets (registered) — year comparison</h2>
-        <div class="filter-row"><label style="margin:0;">Category</label><select id="catFilter1_${brandKey}">${categoryOptions(brandKey)}</select></div>
+        <h2 id="cumChartTitle_${brandKey}">Cumulative daily tickets — year comparison</h2>
+        <div class="filter-row" style="gap:10px;">
+          <label style="margin:0;">Tickets</label><select id="ticketFilter1_${brandKey}"><option value="reg">Registered</option><option value="regunreg">Reg + Unreg</option></select>
+          <label style="margin:0;">Category</label><select id="catFilter1_${brandKey}">${categoryOptions(brandKey)}</select>
+        </div>
       </div>
       <div class="legend-row" id="legendDaily1_${brandKey}"></div>
       <div class="chart-wrap"><canvas id="cumChart_${brandKey}"></canvas></div>
@@ -540,8 +543,11 @@ function brandPageHTML(brandKey){
 
     <div class="panel">
       <div class="panel-head">
-        <h2>Daily additional tickets (registered) — year comparison</h2>
-        <div class="filter-row"><label style="margin:0;">Category</label><select id="catFilter2_${brandKey}">${categoryOptions(brandKey)}</select></div>
+        <h2 id="dailyChartTitle_${brandKey}">Daily additional tickets — year comparison</h2>
+        <div class="filter-row" style="gap:10px;">
+          <label style="margin:0;">Tickets</label><select id="ticketFilter2_${brandKey}"><option value="reg">Registered</option><option value="regunreg">Reg + Unreg</option></select>
+          <label style="margin:0;">Category</label><select id="catFilter2_${brandKey}">${categoryOptions(brandKey)}</select>
+        </div>
       </div>
       <div class="legend-row" id="legendDaily2_${brandKey}"></div>
       <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
@@ -557,6 +563,15 @@ function brandPageHTML(brandKey){
         <span><span class="dot" style="background:rgba(232,105,74,0.35)"></span>Gap</span>
       </div>
       <div class="chart-wrap"><canvas id="paceChart_${brandKey}"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="revChartTitle_${brandKey}">Cumulative daily revenue — year comparison</h2>
+        <div class="filter-row"><label style="margin:0;">Category</label><select id="catFilterRev_${brandKey}">${categoryOptions(brandKey)}</select></div>
+      </div>
+      <div class="legend-row" id="legendRev_${brandKey}"></div>
+      <div class="chart-wrap"><canvas id="revChart_${brandKey}"></canvas></div>
     </div>
 
     <div style="border-top:1px solid var(--line); margin:24px 0 20px; padding-top:4px;">
@@ -614,6 +629,9 @@ function initBrandPage(brandKey){
   document.getElementById('compareCountryFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter1_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter2_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
+  document.getElementById('ticketFilter1_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
+  document.getElementById('ticketFilter2_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
+  document.getElementById('catFilterRev_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('subEventDateFrom_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('subEventDateTo_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   function reRenderAudience(){
@@ -825,9 +843,10 @@ function renderSRBody(brandKey){
   try{ renderCatPhaseTable(brandKey, viewRows, year); }catch(e){ console.error('renderCatPhaseTable',e.message, e.stack); }
   try{ renderCohortTable(brandKey, rows, country); }catch(e){ console.error('renderCohortTable',e.message, e.stack); }
   try{ renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear); }catch(e){ console.error('renderAudienceProfile',e.message, e.stack); }
-  try{ renderCumChart(brandKey, rows, year, compareYear, document.getElementById('catFilter1_'+brandKey).value, country, compareCountry); }catch(e){ console.error('renderCumChart',e.message, e.stack); }
-  try{ renderDailyDeltaChart(brandKey, rows, year, compareYear, document.getElementById('catFilter2_'+brandKey).value, country, compareCountry); }catch(e){ console.error('renderDailyDeltaChart',e.message, e.stack); }
+  try{ renderCumChart(brandKey, rows, year, compareYear, document.getElementById('catFilter1_'+brandKey).value, country, compareCountry, document.getElementById('ticketFilter1_'+brandKey).value); }catch(e){ console.error('renderCumChart',e.message, e.stack); }
+  try{ renderDailyDeltaChart(brandKey, rows, year, compareYear, document.getElementById('catFilter2_'+brandKey).value, country, compareCountry, document.getElementById('ticketFilter2_'+brandKey).value); }catch(e){ console.error('renderDailyDeltaChart',e.message, e.stack); }
   if(showSettings) try{ renderPaceChart(brandKey, viewRows, year, settings); }catch(e){ console.error('renderPaceChart',e.message, e.stack); }
+  try{ renderRevChart(brandKey, rows, year, compareYear, document.getElementById('catFilterRev_'+brandKey).value, country, compareCountry); }catch(e){ console.error('renderRevChart',e.message, e.stack); }
 }
 
 /* ---- Phase performance table ---- */
@@ -1703,18 +1722,89 @@ function chartOptsWithAnnotations(annotations){
   };
 }
 
+function buildDailyRevSeries(rows, cat){
+  const yr = filteredByCategory(rows, cat);
+  const dated = yr.map(r=>({
+    date: parseMYT(r['Date cleaned (DD/MM/YYYY)']),
+    rev: (parseFloat(r['Registration Rev'])||0) + (parseFloat(r['Products Rev'])||0)
+  })).filter(r=>!isNaN(r.date));
+  dated.sort((a,b)=>a.date-b.date);
+  const start = dated.length ? dated[0].date : new Date();
+  const byDay = {};
+  const dayToDate = {};
+  let lastDayWithData = 0;
+  dated.forEach(r=>{
+    const d = Math.round((r.date-start)/(1000*60*60*24));
+    byDay[d] = (byDay[d]||0) + r.rev;
+    if(!dayToDate[d]) dayToDate[d] = r.date;
+    if(d > lastDayWithData) lastDayWithData = d;
+  });
+  return {byDay, lastDayWithData, start, dayToDate};
+}
+
+function renderRevChart(brandKey, rows, year, compareYear, cat, country, compareCountry){
+  const years = compareYear ? [year, compareYear] : [year];
+  const countries = compareYear ? [country, compareCountry] : [country];
+  document.getElementById('legendRev_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}${countries[i]!=='all'?' ('+countries[i]+')':''}</span>`).join('');
+  const seriesList = years.map((y,i)=>{
+    const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
+    return buildDailyRevSeries(filtered, cat);
+  });
+  const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
+  const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
+  const datasets = seriesList.map((s,i)=>{
+    let cum = 0;
+    const data = labels.map((_,d)=>{
+      if(d > s.lastDayWithData) return null;
+      cum += (s.byDay[d]||0);
+      return cum;
+    });
+    return {label:String(years[i]), data, borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15, spanGaps:false};
+  });
+  const id = 'revChart_'+brandKey;
+  destroyChart(id);
+  const opts = chartOpts();
+  opts.plugins = opts.plugins || {};
+  opts.plugins.tooltip = {
+    callbacks:{
+      title: items=>{
+        const d = items[0].dataIndex;
+        const dates = seriesList.map(s=>s.dayToDate[d]).filter(Boolean);
+        const dateStrs = dates.map(dt=>dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}));
+        const unique = [...new Set(dateStrs)];
+        return `Day ${d}${unique.length ? ' — ' + unique.join(' / ') : ''}`;
+      },
+      label: ctx=>' '+ctx.dataset.label+': '+fmtMoney(ctx.parsed.y)
+    }
+  };
+  opts.scales = opts.scales || {};
+  opts.scales.y = {ticks:{color:'#8FA999', callback:v=>{ if(v>=1000000) return 'RM'+(v/1000000).toFixed(1)+'M'; if(v>=1000) return 'RM'+(v/1000).toFixed(0)+'K'; return 'RM'+v; }}, grid:{color:'rgba(143,169,153,0.15)'}};
+  chartInstances[id] = new Chart(document.getElementById(id), {type:'line', data:{labels,datasets}, options:opts});
+}
+
 function destroyChart(id){
   if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; }
 }
 
-function renderCumChart(brandKey, rows, year, compareYear, cat, country, compareCountry){
+function renderCumChart(brandKey, rows, year, compareYear, cat, country, compareCountry, ticketMode){
+  ticketMode = ticketMode || 'reg';
+  const settings = brandData[brandKey] ? brandData[brandKey].settings : {};
   const years = compareYear ? [year, compareYear] : [year];
   const countries = compareYear ? [country, compareCountry] : [country];
+  const modeLabel = ticketMode==='regunreg' ? 'Reg + Unreg' : 'Registered';
+  const titleEl = document.getElementById('cumChartTitle_'+brandKey);
+  if(titleEl) titleEl.textContent = `Cumulative daily tickets (${modeLabel}) — year comparison`;
   document.getElementById('legendDaily1_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}${countries[i]!=='all'?' ('+countries[i]+')':''}</span>`).join('');
   const seriesList = years.map((y,i)=>{
     const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
     return buildDailySeries(filtered, y, cat);
   });
+  // compute unreg per year to add on last day if regunreg mode
+  const unregByYear = ticketMode==='regunreg' ? years.map((y,i)=>{
+    const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
+    const m = computeBrandYearMetrics(filtered, y, brandKey, settings);
+    return m.unreg || 0;
+  }) : years.map(()=>0);
   const maxDay = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels = Array.from({length:maxDay+1}, (_,i)=>"Day "+i);
   const datasets = seriesList.map((s,i)=>{
@@ -1722,7 +1812,9 @@ function renderCumChart(brandKey, rows, year, compareYear, cat, country, compare
     const data = labels.map((_,d)=>{
       if(d > s.lastDayWithData) return null;
       cum += (s.byDay[d]||0);
-      return cum;
+      // add unreg gap on last day with data
+      const val = (d===s.lastDayWithData && ticketMode==='regunreg') ? cum + unregByYear[i] : cum;
+      return val;
     });
     return {label:String(years[i]), data, borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.15, spanGaps:false};
   });
@@ -1744,19 +1836,34 @@ function renderCumChart(brandKey, rows, year, compareYear, cat, country, compare
   chartInstances[id] = new Chart(document.getElementById(id), {type:'line', data:{labels,datasets}, options:cumOpts});
 }
 
-function renderDailyDeltaChart(brandKey, rows, year, compareYear, cat, country, compareCountry){
+function renderDailyDeltaChart(brandKey, rows, year, compareYear, cat, country, compareCountry, ticketMode){
+  ticketMode = ticketMode || 'reg';
+  const settings = brandData[brandKey] ? brandData[brandKey].settings : {};
   const years = compareYear ? [year, compareYear] : [year];
   const countries = compareYear ? [country, compareCountry] : [country];
+  const modeLabel = ticketMode==='regunreg' ? 'Reg + Unreg' : 'Registered';
+  const titleEl = document.getElementById('dailyChartTitle_'+brandKey);
+  if(titleEl) titleEl.textContent = `Daily additional tickets (${modeLabel}) — year comparison`;
   document.getElementById('legendDaily2_'+brandKey).innerHTML = years.map((y,i)=>`<span><span class="dot" style="background:${PALETTE[i]}"></span>${y}${countries[i]!=='all'?' ('+countries[i]+')':''}</span>`).join('');
   const seriesList = years.map((y,i)=>{
     const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
     return buildDailySeries(filtered, y, cat);
   });
+  // add unreg on last day for regunreg mode
+  const unregByYear = ticketMode==='regunreg' ? years.map((y,i)=>{
+    const filtered = rows.filter(r=>getEventYear(r)===String(y)&&(countries[i]==='all'||r['Country']===countries[i]));
+    const m = computeBrandYearMetrics(filtered, y, brandKey, settings);
+    return m.unreg || 0;
+  }) : years.map(()=>0);
   const maxDay2 = Math.max(1, ...seriesList.map(s=>s.lastDayWithData));
   const labels2 = Array.from({length:maxDay2+1}, (_,i)=>"Day "+i);
   const datasets2 = seriesList.map((s,i)=>({
     label:String(years[i]),
-    data: labels2.map((_,d)=> d > s.lastDayWithData ? null : (s.byDay[d]||0)),
+    data: labels2.map((_,d)=>{
+      if(d > s.lastDayWithData) return null;
+      const base = s.byDay[d]||0;
+      return (d===s.lastDayWithData && ticketMode==='regunreg') ? base + unregByYear[i] : base;
+    }),
     borderColor:PALETTE[i], backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.2, spanGaps:false
   }));
   const annotations = buildPhaseAnnotations(rows, years, seriesList);
