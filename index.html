@@ -920,6 +920,16 @@ function renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear, settin
     const revCell = fmtMoney(d.revenue) + deltaCell(d.revenue, !!cd, cd?cd.revenue:null, fmtMoney);
     html += `<tr><td>${p}</td><td style="text-align:right">${ticketsCell}</td><td style="text-align:right">${Math.round(avgDaily)}</td><td style="text-align:right">${revCell}</td></tr>`;
   });
+
+  // Grand total row for viewing year only
+  const grandTickets = Object.values(phases).reduce((a,d)=>a+d.tickets, 0);
+  const grandRev = Object.values(phases).reduce((a,d)=>a+d.revenue, 0);
+  html += `<tr style="border-top:2px solid var(--line); font-weight:700;">
+    <td>Grand Total</td>
+    <td style="text-align:right">${fmtNum(grandTickets)}</td>
+    <td style="text-align:right">—</td>
+    <td style="text-align:right">${fmtMoney(grandRev)}</td>
+  </tr>`;
   html += '</tbody></table>';
   document.getElementById('phaseTable_'+brandKey).innerHTML = html;
 }
