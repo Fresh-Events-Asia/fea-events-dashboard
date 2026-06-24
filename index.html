@@ -509,11 +509,17 @@ function brandPageHTML(brandKey){
 
     <div class="panel" ${brandKey==='tmr' ? 'style="display:none;"' : ''}><h2>Sub-event breakdown (Reg + Unreg)</h2>
       <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-        <label style="font-size:12px; color:var(--text-dim); margin:0;">Filter by date:</label>
-        <input type="date" id="subEventDateFrom_${brandKey}" style="font-size:12px; padding:3px 6px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px;" />
-        <span style="color:var(--text-dim); font-size:12px;">to</span>
-        <input type="date" id="subEventDateTo_${brandKey}" style="font-size:12px; padding:3px 6px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px;" />
-        <button class="secondary" style="font-size:12px; padding:3px 10px;" onclick="clearSubEventDateFilter('${brandKey}')">Clear</button>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex:1; min-width:0;">
+          <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+            <label style="font-size:11px; color:var(--text-dim); margin:0;">From</label>
+            <input type="date" id="subEventDateFrom_${brandKey}" style="width:100%; font-size:12px; padding:5px 8px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; cursor:pointer;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px;">
+            <label style="font-size:11px; color:var(--text-dim); margin:0;">To</label>
+            <input type="date" id="subEventDateTo_${brandKey}" style="width:100%; font-size:12px; padding:5px 8px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; cursor:pointer;" />
+          </div>
+        </div>
+        <button class="secondary" style="font-size:12px; padding:5px 14px; align-self:flex-end; white-space:nowrap;" onclick="clearSubEventDateFilter('${brandKey}')">✕ Clear</button>
       </div>
       <div class="table-scroll" id="subEventTable_${brandKey}"></div>
     </div>
