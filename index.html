@@ -236,7 +236,7 @@ async function loadAll(){
   }));
 
   const totalRows = Object.values(brandData).reduce((a,b)=>a+b.rows.length,0);
-  const myt = new Date().toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const myt = fmtMYTTime();
   document.getElementById('statusLineOverview').textContent = "Live — " + totalRows + " total records · updated " + myt + " MYT";
 
   renderOverview();
@@ -660,7 +660,7 @@ function renderBrandPage(brandKey){
   }
   const data = brandData[brandKey];
   if(!data) return;
-  const mytBrand = new Date().toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const mytBrand = fmtMYTTime();
   document.getElementById('statusLine_'+brandKey).textContent = "Live — " + data.rows.length + " records · updated " + mytBrand + " MYT";
 
   populateCountryFilter(document.getElementById('countryFilter_'+brandKey), data.rows);
@@ -1613,7 +1613,20 @@ function parseMYT(dateStr){
 }
 function fmtMYT(date){
   if(!date || isNaN(date)) return '';
-  return date.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'});
+  // shift to MYT (+8h) then format manually — avoids Intl timeZone option which breaks on iOS WebKit
+  const mytMs = date.getTime() + 8*60*60*1000;
+  const d = new Date(mytMs);
+  const day = d.getUTCDate();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${day} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+function fmtMYTTime(){
+  const mytMs = Date.now() + 8*60*60*1000;
+  const d = new Date(mytMs);
+  const h = String(d.getUTCHours()).padStart(2,'0');
+  const m = String(d.getUTCMinutes()).padStart(2,'0');
+  const s = String(d.getUTCSeconds()).padStart(2,'0');
+  return `${h}:${m}:${s}`;
 }
 function dayKey(dateStr){ return parseMYT(dateStr); }
 
@@ -1796,7 +1809,7 @@ function renderRevChart(brandKey, rows, year, compareYear, cat, country, compare
       title: items=>{
         const d = items[0].dataIndex;
         const dates = seriesList.map(s=>s.dayToDate[d]).filter(Boolean);
-        const dateStrs = dates.map(dt=>dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}));
+        const dateStrs = dates.map(dt=>fmtMYT(dt));
         const unique = [...new Set(dateStrs)];
         return `Day ${d}${unique.length ? ' — ' + unique.join(' / ') : ''}`;
       },
@@ -1845,7 +1858,7 @@ function renderCumChart(brandKey, rows, year, compareYear, cat, country, compare
       title: items=>{
         const d = items[0].dataIndex;
         const dates = seriesList.map(s=>s.dayToDate[d]).filter(Boolean);
-        const dateStrs = dates.map(dt=>dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}));
+        const dateStrs = dates.map(dt=>fmtMYT(dt));
         const unique = [...new Set(dateStrs)];
         return `Day ${d}${unique.length ? ' — ' + unique.join(' / ') : ''}`;
       }
@@ -1884,7 +1897,7 @@ function renderDailyDeltaChart(brandKey, rows, year, compareYear, cat, country, 
       title: items=>{
         const d = items[0].dataIndex;
         const dates = seriesList.map(s=>s.dayToDate[d]).filter(Boolean);
-        const dateStrs = dates.map(dt=>dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}));
+        const dateStrs = dates.map(dt=>fmtMYT(dt));
         const unique = [...new Set(dateStrs)];
         return `Day ${d}${unique.length ? ' — ' + unique.join(' / ') : ''}`;
       }
@@ -1956,7 +1969,7 @@ function renderPaceChart(brandKey, rows, year, settings){
             title: items=>{
               const d = items[0].dataIndex;
               const dt = dayToDate[d];
-              const dateStr = dt ? dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Kuala_Lumpur'}) : '';
+              const dateStr = dt ? fmtMYT(dt) : '';
               return `Day ${d}${dateStr ? ' — ' + dateStr : ''}`;
             },
             afterBody: function(items){
