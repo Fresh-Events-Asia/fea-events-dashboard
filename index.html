@@ -952,26 +952,30 @@ function computeSubEventBreakdown(rows, year, brandKey, settings){
 
 function renderSubEventTable(brandKey, viewRows, cmpRows, year, compareYear, settings){
   // apply date range filter if set
+  function toYMD(d){
+    if(!d) return null;
+    const s = d.toString().trim();
+    // DD/MM/YYYY
+    const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+    // YYYY-MM-DD
+    if(s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0,10);
+    // MM/DD/YYYY
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(mdy) return `${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
+    return null;
+  }
   function applyDateFilter(rows){
     const fromEl = document.getElementById('subEventDateFrom_'+brandKey);
     const toEl = document.getElementById('subEventDateTo_'+brandKey);
-    const fromVal = fromEl ? fromEl.value : ''; // YYYY-MM-DD
+    const fromVal = fromEl ? fromEl.value : ''; // YYYY-MM-DD from browser
     const toVal = toEl ? toEl.value : '';
     if(!fromVal && !toVal) return rows;
+    // debug: log first row's date value
+    if(rows.length) console.log('[dateFilter] sample date value:', rows[0]['Date cleaned (DD/MM/YYYY)'], '→ YMD:', toYMD(rows[0]['Date cleaned (DD/MM/YYYY)']), 'fromVal:', fromVal, 'toVal:', toVal);
     return rows.filter(r=>{
-      const d = r['Date cleaned (DD/MM/YYYY)'];
-      if(!d) return false;
-      // convert DD/MM/YYYY → YYYY-MM-DD for string comparison
-      const parts = d.toString().trim().split('/');
-      let rowYMD;
-      if(parts.length === 3){
-        rowYMD = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-      } else {
-        // fallback: try parsing as-is
-        const dt = new Date(d);
-        if(isNaN(dt)) return false;
-        rowYMD = dt.toISOString().slice(0,10);
-      }
+      const rowYMD = toYMD(r['Date cleaned (DD/MM/YYYY)']);
+      if(!rowYMD) return false;
       if(fromVal && rowYMD < fromVal) return false;
       if(toVal && rowYMD > toVal) return false;
       return true;
