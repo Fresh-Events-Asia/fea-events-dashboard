@@ -268,7 +268,7 @@ function renderTSR2Sections(brandKey, year, compareYear, country){
 
   renderTrafficSection(brandKey, yr2, cmpYr2, yr1, year, compareYear);
   renderEDMSection(brandKey, yr2, year, compareYear, allRows);
-  renderSocialSection(brandKey, yr2, year);
+  renderSocialSection(brandKey, yr2, year, compareYear, allRows);
 }
 
 // ---- TRAFFIC ----
@@ -457,7 +457,11 @@ function renderEDMSection(brandKey, rows, year, compareYear, allRows){
       plugins:{
         legend:{labels:{color:'#EAF2EC', font:{size:11}, boxWidth:12}},
         tooltip:{callbacks:{
-          title: items => names[items[0].dataIndex] || shortNames[items[0].dataIndex]
+          title: items => names[items[0].dataIndex] || shortNames[items[0].dataIndex],
+          label: ctx => {
+            if(ctx.dataset.yAxisID==='yRate') return ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`;
+            return ` Deliveries: ${fmtNum(ctx.parsed.y)}`;
+          }
         }}
       },
       scales:{
@@ -480,8 +484,7 @@ function renderEDMSection(brandKey, rows, year, compareYear, allRows){
 }
 
 // ---- SOCIAL ----
-function renderSocialSection(brandKey, rows, year){
-  // column names have newlines
+function renderSocialSection(brandKey, rows, year, compareYear, allRows){
   const fbCN = '[Social]\nFB Content Name';
   const fbReachC = '[Social]\nFB Reach';
   const fbViewsC = '[Social]\n FB \nViews';
@@ -500,12 +503,31 @@ function renderSocialSection(brandKey, rows, year){
   const igIRRows = rows.filter(r=>parseFloat(r[igIRC])||0);
   const avgIGRate = igIRRows.length ? igIRRows.reduce((a,r)=>a+(parseFloat(r[igIRC])||0),0)/igIRRows.length : 0;
 
+  // compare year
+  const cmpRows2 = compareYear ? (allRows||[]).filter(r=>getTSR2Year(r)===String(compareYear)) : null;
+  const cmpFbReach = cmpRows2 ? cmpRows2.reduce((a,r)=>a+(parseFloat(r[fbReachC])||0),0) : null;
+  const cmpFbViews = cmpRows2 ? cmpRows2.reduce((a,r)=>a+(parseFloat(r[fbViewsC])||0),0) : null;
+  const cmpIgReach = cmpRows2 ? cmpRows2.reduce((a,r)=>a+(parseFloat(r[igReachC])||0),0) : null;
+  const cmpIgViews = cmpRows2 ? cmpRows2.reduce((a,r)=>a+(parseFloat(r[igViewsC])||0),0) : null;
+  const cmpFbIRRows = cmpRows2 ? cmpRows2.filter(r=>parseFloat(r[fbIRC])||0) : null;
+  const cmpIgIRRows = cmpRows2 ? cmpRows2.filter(r=>parseFloat(r[igIRC])||0) : null;
+  const cmpAvgFBRate = cmpFbIRRows&&cmpFbIRRows.length ? cmpFbIRRows.reduce((a,r)=>a+(parseFloat(r[fbIRC])||0),0)/cmpFbIRRows.length : null;
+  const cmpAvgIGRate = cmpIgIRRows&&cmpIgIRRows.length ? cmpIgIRRows.reduce((a,r)=>a+(parseFloat(r[igIRC])||0),0)/cmpIgIRRows.length : null;
+
+  function deltaLine(curr, prev, fmt){ if(prev===null||prev===undefined) return ''; const up=curr>=prev; return `<div class="delta ${up?'up':'down'}">${up?'▲':'▼'} ${compareYear}: ${fmt(prev)}</div>`; }
+
+  // FB/IG SVG icons (simple)
+  const fbIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#378ADD" style="vertical-align:middle;margin-right:4px;"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`;
+  const igIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#FF6A3D" style="vertical-align:middle;margin-right:4px;"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`;
+
   const metricsEl = document.getElementById('socialMetrics_'+brandKey);
   if(metricsEl) metricsEl.innerHTML =
-    `<div class="metric"><div class="label">Total Reach (FB+IG)</div><div class="val">${fmtNum(fbReach+igReach)}</div></div>` +
-    `<div class="metric"><div class="label">Total Views (FB+IG)</div><div class="val">${fmtNum(fbViews+igViews)}</div></div>` +
-    `<div class="metric"><div class="label">FB Reach</div><div class="val">${fmtNum(fbReach)}</div><div class="delta flat">Avg IR: ${(avgFBRate*100).toFixed(2)}%</div></div>` +
-    `<div class="metric"><div class="label">IG Reach</div><div class="val">${fmtNum(igReach)}</div><div class="delta flat">Avg IR: ${(avgIGRate*100).toFixed(2)}%</div></div>`;
+    `<div class="metric"><div class="label">Total Reach (FB+IG)</div><div class="val">${fmtNum(fbReach+igReach)}</div>${deltaLine(fbReach+igReach,(cmpFbReach!==null&&cmpIgReach!==null)?cmpFbReach+cmpIgReach:null,fmtNum)}</div>` +
+    `<div class="metric"><div class="label">Total Views (FB+IG)</div><div class="val">${fmtNum(fbViews+igViews)}</div>${deltaLine(fbViews+igViews,(cmpFbViews!==null&&cmpIgViews!==null)?cmpFbViews+cmpIgViews:null,fmtNum)}</div>` +
+    `<div class="metric"><div class="label">${fbIcon}FB Reach</div><div class="val">${fmtNum(fbReach)}</div>${deltaLine(fbReach,cmpFbReach,fmtNum)}</div>` +
+    `<div class="metric"><div class="label">${fbIcon}FB Views</div><div class="val">${fmtNum(fbViews)}</div>${deltaLine(fbViews,cmpFbViews,fmtNum)}<div class="delta flat">Avg IR: ${(avgFBRate*100).toFixed(1)}%${cmpAvgFBRate!==null?' · '+compareYear+': '+(cmpAvgFBRate*100).toFixed(1)+'%':''}</div></div>` +
+    `<div class="metric"><div class="label">${igIcon}IG Reach</div><div class="val">${fmtNum(igReach)}</div>${deltaLine(igReach,cmpIgReach,fmtNum)}</div>` +
+    `<div class="metric"><div class="label">${igIcon}IG Views</div><div class="val">${fmtNum(igViews)}</div>${deltaLine(igViews,cmpIgViews,fmtNum)}<div class="delta flat">Avg IR: ${(avgIGRate*100).toFixed(1)}%${cmpAvgIGRate!==null?' · '+compareYear+': '+(cmpAvgIGRate*100).toFixed(1)+'%':''}</div></div>`;
 
   // IG chart
   const igData = rows.filter(r=>(r[igCN]||'').toString().trim());
@@ -518,15 +540,18 @@ function renderSocialSection(brandKey, rows, year){
   chartInstances['igChart_'+brandKey] = new Chart(igCtx, {
     data:{labels:igShort, datasets:[
       {type:'bar', label:'Views', data:igViewsArr, backgroundColor:'rgba(111,207,151,0.7)', borderRadius:3, yAxisID:'yViews', order:2},
-      {type:'line', label:'Interaction Rate', data:igIR, borderColor:'#FF6A3D', backgroundColor:'transparent', borderWidth:2, pointRadius:3, yAxisID:'yIR', order:1, tension:0.2}
+      {type:'line', label:'Interaction Rate %', data:igIR, borderColor:'#FF6A3D', backgroundColor:'transparent', borderWidth:2, pointRadius:3, yAxisID:'yIR', order:1, tension:0.2}
     ]},
     options:{responsive:true, maintainAspectRatio:false,
       plugins:{legend:{labels:{color:'#EAF2EC', font:{size:11}, boxWidth:12}},
-        tooltip:{callbacks:{title:items=>igNames[items[0].dataIndex]||igShort[items[0].dataIndex]}}},
+        tooltip:{callbacks:{
+          title:items=>igNames[items[0].dataIndex]||igShort[items[0].dataIndex],
+          label:ctx=>ctx.dataset.yAxisID==='yIR'?` IR: ${ctx.parsed.y.toFixed(1)}%`:` Views: ${fmtNum(ctx.parsed.y)}`
+        }}},
       scales:{
         x:{ticks:{color:'#8FA999', maxRotation:45, font:{size:10}}, grid:{display:false}},
         yViews:{position:'left', ticks:{color:'#6FCF97', callback:v=>fmtNum(v)}, grid:{color:'rgba(143,169,153,0.15)'}, title:{display:true, text:'Views', color:'#6FCF97', font:{size:10}}},
-        yIR:{position:'right', ticks:{color:'#FF6A3D', callback:v=>v.toFixed(2)+'%'}, grid:{display:false}, title:{display:true, text:'IR %', color:'#FF6A3D', font:{size:10}}}
+        yIR:{position:'right', ticks:{color:'#FF6A3D', callback:v=>v.toFixed(1)+'%'}, grid:{display:false}, title:{display:true, text:'IR %', color:'#FF6A3D', font:{size:10}}}
       }
     }
   });
@@ -542,15 +567,18 @@ function renderSocialSection(brandKey, rows, year){
   chartInstances['fbChart_'+brandKey] = new Chart(fbCtx, {
     data:{labels:fbShort, datasets:[
       {type:'bar', label:'Views', data:fbViewsArr, backgroundColor:'rgba(55,138,221,0.7)', borderRadius:3, yAxisID:'yViews', order:2},
-      {type:'line', label:'Interaction Rate', data:fbIR, borderColor:'#C77DFF', backgroundColor:'transparent', borderWidth:2, pointRadius:3, yAxisID:'yIR', order:1, tension:0.2}
+      {type:'line', label:'Interaction Rate %', data:fbIR, borderColor:'#C77DFF', backgroundColor:'transparent', borderWidth:2, pointRadius:3, yAxisID:'yIR', order:1, tension:0.2}
     ]},
     options:{responsive:true, maintainAspectRatio:false,
       plugins:{legend:{labels:{color:'#EAF2EC', font:{size:11}, boxWidth:12}},
-        tooltip:{callbacks:{title:items=>fbNames[items[0].dataIndex]||fbShort[items[0].dataIndex]}}},
+        tooltip:{callbacks:{
+          title:items=>fbNames[items[0].dataIndex]||fbShort[items[0].dataIndex],
+          label:ctx=>ctx.dataset.yAxisID==='yIR'?` IR: ${ctx.parsed.y.toFixed(1)}%`:` Views: ${fmtNum(ctx.parsed.y)}`
+        }}},
       scales:{
         x:{ticks:{color:'#8FA999', maxRotation:45, font:{size:10}}, grid:{display:false}},
         yViews:{position:'left', ticks:{color:'#378ADD', callback:v=>fmtNum(v)}, grid:{color:'rgba(143,169,153,0.15)'}, title:{display:true, text:'Views', color:'#378ADD', font:{size:10}}},
-        yIR:{position:'right', ticks:{color:'#C77DFF', callback:v=>v.toFixed(2)+'%'}, grid:{display:false}, title:{display:true, text:'IR %', color:'#C77DFF', font:{size:10}}}
+        yIR:{position:'right', ticks:{color:'#C77DFF', callback:v=>v.toFixed(1)+'%'}, grid:{display:false}, title:{display:true, text:'IR %', color:'#C77DFF', font:{size:10}}}
       }
     }
   });
@@ -558,19 +586,19 @@ function renderSocialSection(brandKey, rows, year){
   // top 5 IG by views
   const top5IG = [...igData].sort((a,b)=>(parseFloat(b[igViewsC])||0)-(parseFloat(a[igViewsC])||0)).slice(0,5);
   const igTop5El = document.getElementById('igTop5_'+brandKey);
-  if(igTop5El) igTop5El.innerHTML = `<h2>Top 5 IG by Views</h2>` +
+  if(igTop5El) igTop5El.innerHTML = `<h2>${igIcon}Top 5 IG by Views</h2>` +
     top5IG.map((r,i)=>`<div style="padding:8px 0; border-bottom:1px solid var(--line);">
       <div style="font-size:12px; font-weight:600;">#${i+1} ${(r[igCN]||'').toString().trim()}</div>
-      <div style="font-size:12px; color:var(--text-dim);">${fmtNum(parseFloat(r[igViewsC])||0)} views · ${((parseFloat(r[igIRC])||0)*100).toFixed(2)}% IR · ${r['Phase']||''}</div>
+      <div style="font-size:12px; color:var(--text-dim);">${fmtNum(parseFloat(r[igViewsC])||0)} views · ${((parseFloat(r[igIRC])||0)*100).toFixed(1)}% IR · ${r['Phase']||''}</div>
     </div>`).join('');
 
   // top 5 FB by views
   const top5FB = [...fbData].sort((a,b)=>(parseFloat(b[fbViewsC])||0)-(parseFloat(a[fbViewsC])||0)).slice(0,5);
   const fbTop5El = document.getElementById('fbTop5_'+brandKey);
-  if(fbTop5El) fbTop5El.innerHTML = `<h2>Top 5 FB by Views</h2>` +
+  if(fbTop5El) fbTop5El.innerHTML = `<h2>${fbIcon}Top 5 FB by Views</h2>` +
     top5FB.map((r,i)=>`<div style="padding:8px 0; border-bottom:1px solid var(--line);">
       <div style="font-size:12px; font-weight:600;">#${i+1} ${(r[fbCN]||'').toString().trim()}</div>
-      <div style="font-size:12px; color:var(--text-dim);">${fmtNum(parseFloat(r[fbViewsC])||0)} views · ${((parseFloat(r[fbIRC])||0)*100).toFixed(2)}% IR · ${r['Phase']||''}</div>
+      <div style="font-size:12px; color:var(--text-dim);">${fmtNum(parseFloat(r[fbViewsC])||0)} views · ${((parseFloat(r[fbIRC])||0)*100).toFixed(1)}% IR · ${r['Phase']||''}</div>
     </div>`).join('');
 }
 
