@@ -540,8 +540,8 @@ function brandPageHTML(brandKey){
       <div class="panel-head">
         <h2 id="cumChartTitle_${brandKey}">Cumulative daily tickets — year comparison</h2>
         <div class="filter-row" style="gap:10px; flex-wrap:wrap;">
-          <label style="margin:0;">Tickets</label><select id="ticketFilter1_${brandKey}"><option value="regunreg">Reg + Unreg</option><option value="reg">Registered</option></select>
-          <label style="margin:0;">Category</label><select id="catFilter1_${brandKey}">${categoryOptions(brandKey)}</select>
+          <div style="display:flex; align-items:center; gap:6px;"><label style="margin:0;">Tickets</label><select id="ticketFilter1_${brandKey}"><option value="regunreg">Reg + Unreg</option><option value="reg">Registered</option></select></div>
+          <div style="display:flex; align-items:center; gap:6px;"><label style="margin:0;">Category</label><select id="catFilter1_${brandKey}">${categoryOptions(brandKey)}</select></div>
         </div>
       </div>
       <div class="legend-row" id="legendDaily1_${brandKey}"></div>
@@ -552,8 +552,8 @@ function brandPageHTML(brandKey){
       <div class="panel-head">
         <h2 id="dailyChartTitle_${brandKey}">Daily additional tickets — year comparison</h2>
         <div class="filter-row" style="gap:10px; flex-wrap:wrap;">
-          <label style="margin:0;">Tickets</label><select id="ticketFilter2_${brandKey}"><option value="regunreg">Reg + Unreg</option><option value="reg">Registered</option></select>
-          <label style="margin:0;">Category</label><select id="catFilter2_${brandKey}">${categoryOptions(brandKey)}</select>
+          <div style="display:flex; align-items:center; gap:6px;"><label style="margin:0;">Tickets</label><select id="ticketFilter2_${brandKey}"><option value="regunreg">Reg + Unreg</option><option value="reg">Registered</option></select></div>
+          <div style="display:flex; align-items:center; gap:6px;"><label style="margin:0;">Category</label><select id="catFilter2_${brandKey}">${categoryOptions(brandKey)}</select></div>
         </div>
       </div>
       <div class="legend-row" id="legendDaily2_${brandKey}"></div>
@@ -819,13 +819,14 @@ function renderSRBody(brandKey){
     }
   }
 
-  // total campaign days: first sale date → last phase end date (viewing year)
+  // total campaign days: first sale date → last phase end (if settings) or last data date
   let totalCampaignDays = null;
-  if(showSettings && lastPhaseEnd && viewRows.length > 0){
+  if(viewRows.length > 0){
     const dates = viewRows.map(r=>parseMYT(r['Date cleaned (DD/MM/YYYY)'])).filter(d=>!isNaN(d));
     if(dates.length){
       const firstSaleDate = new Date(Math.min(...dates));
-      totalCampaignDays = Math.round((lastPhaseEnd - firstSaleDate)/(1000*60*60*24));
+      const endDate = (showSettings && lastPhaseEnd) ? lastPhaseEnd : new Date(Math.max(...dates));
+      totalCampaignDays = Math.round((endDate - firstSaleDate)/(1000*60*60*24));
     }
   }
 
@@ -856,7 +857,7 @@ function renderSRBody(brandKey){
     }
     const progressCard = pctToTarget!==null ? `<div class="metric"><div class="label">% to target (reg+unreg)</div><div class="val">${pctToTarget.toFixed(1)}%</div><div style="background:var(--panel-2);border-radius:4px;height:8px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:${pctToTarget}%;background:${pctToTarget>=100?'var(--good)':'var(--accent2)'};border-radius:4px;transition:width 0.4s;"></div></div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(curr.totalTicketsRegUnreg)} / ${fmtNum(totalTarget)}</div></div>` : '';
     const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Daily run rate needed (overall)'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
-    const campaignDaysCard = showSettings && totalCampaignDays!==null ? `<div class="metric"><div class="label">Total campaign days (Day 0 → event date)</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
+    const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total campaign days (Day 0 → ${showSettings && lastPhaseEnd ? 'event date' : 'last data'})</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
     metricsEl.innerHTML =
       card('Tickets sold (reg+unreg)', curr.totalTicketsRegUnreg, cmp?cmp.totalTicketsRegUnreg:null, fmtNum) +
       card('Registered tickets', curr.regTickets, cmp?cmp.regTickets:null, fmtNum) +
