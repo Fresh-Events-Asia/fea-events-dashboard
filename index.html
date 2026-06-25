@@ -301,13 +301,13 @@ function brandRowsFor(brandKey, countryVal){
 function populateCountryFilter(selectEl, rows){
   const countries = [...new Set(rows.map(r=>r['Country']).filter(Boolean))].sort();
   const prevVal = selectEl.value;
-  selectEl.innerHTML = '<option value="all">All countries</option>' + countries.map(c=>`<option value="${c}">${c}</option>`).join('');
-  if(prevVal && (prevVal==='all' || countries.includes(prevVal))){
+  selectEl.innerHTML = countries.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(prevVal && countries.includes(prevVal)){
     selectEl.value = prevVal;
   } else if(countries.includes('Malaysia')){
     selectEl.value = 'Malaysia';
-  } else {
-    selectEl.value = 'all';
+  } else if(countries.length){
+    selectEl.value = countries[0];
   }
 }
 
@@ -329,13 +329,13 @@ function renderOverview(){
     }
 
     const countries = [...new Set(data.rows.map(r=>r['Country']).filter(Boolean))].sort();
-    const defaultCountry = countries.includes('Malaysia') ? 'Malaysia' : 'all';
+    const defaultCountry = countries.includes('Malaysia') ? 'Malaysia' : (countries[0]||'');
     const countryId = `overviewCountry_${b.key}`;
     const existingEl = document.getElementById(countryId);
-    const selectedCountry = existingEl ? existingEl.value : defaultCountry;
-    const countryOpts = '<option value="all">All</option>' + countries.map(c=>`<option value="${c}"${c===selectedCountry?' selected':''}>${c}</option>`).join('');
+    const selectedCountry = (existingEl && countries.includes(existingEl.value)) ? existingEl.value : defaultCountry;
+    const countryOpts = countries.map(c=>`<option value="${c}"${c===selectedCountry?' selected':''}>${c}</option>`).join('');
 
-    const filteredRows = selectedCountry==='all' ? data.rows : data.rows.filter(r=>r['Country']===selectedCountry);
+    const filteredRows = data.rows.filter(r=>r['Country']===selectedCountry);
     const years = [...new Set(data.rows.map(r=>getEventYear(r)).filter(Boolean))].sort();
     const latestYear = years[years.length-1];
     const prevYear = years.length>1 ? years[years.length-2] : null;
@@ -633,6 +633,11 @@ function initBrandPage(brandKey){
   document.getElementById('yearFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('compareYearFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('countryFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
+  document.getElementById('countryFilter_'+brandKey).addEventListener('change', ()=>{
+    const container = document.getElementById('phaseDefRows_'+brandKey);
+    if(container) container._lastPhaseKey = null; // force reload
+    renderSRBody(brandKey);
+  });
   document.getElementById('compareCountryFilter_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter1_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
   document.getElementById('catFilter2_'+brandKey).addEventListener('change', ()=>renderSRBody(brandKey));
@@ -757,7 +762,25 @@ function renderSRBody(brandKey){
   document.getElementById('settingsPanel_'+brandKey).style.display = showSettings ? '' : 'none';
   document.getElementById('paceChartPanel_'+brandKey).style.display = showSettings ? '' : 'none';
 
-  const settings = brandData[brandKey].settings;
+  // load country+year specific phase settings
+  const allSettings = brandData[brandKey].settings || {};
+  const phaseKey = `phases_${country}_${year}`;
+  const countryPhases = allSettings[phaseKey] || allSettings.phases || [];
+  const settings = {...allSettings, phases: countryPhases};
+
+  // re-render phase def rows if country or year changed
+  if(showSettings){
+    const container = document.getElementById('phaseDefRows_'+brandKey);
+    if(container._lastPhaseKey !== phaseKey){
+      container._lastPhaseKey = phaseKey;
+      container.innerHTML = '';
+      if(countryPhases.length){
+        countryPhases.forEach(p=>addPhaseDefRow(brandKey, p.name, p.start, p.end, p.target));
+      } else {
+        renderPhaseDefRows(brandKey);
+      }
+    }
+  }
   const curr = computeBrandYearMetrics(viewRows, year, brandKey, settings);
   const cmp = (compareYear && cmpRows) ? computeBrandYearMetrics(cmpRows, compareYear, brandKey, settings) : null;
   const avgPriceCurr = curr.regTickets ? curr.totalRev/curr.regTickets : 0;
@@ -2028,6 +2051,10 @@ function renderPaceChart(brandKey, rows, year, settings){
 
 async function saveSettingsFor(brandKey){
   const statusId = brandKey==='tsr' ? 'saveStatusTSR' : 'saveStatusRL';
+  const year = document.getElementById('yearFilter_'+brandKey).value;
+  const country = document.getElementById('countryFilter_'+brandKey).value;
+  const phaseKey = `phases_${country}_${year}`;
+
   const phases = [];
   let missingTarget = false;
   document.querySelectorAll('#phaseDefRows_'+brandKey+' .phase-def-row').forEach(row=>{
@@ -2048,7 +2075,9 @@ async function saveSettingsFor(brandKey){
     return;
   }
 
-  let settings = {phases};
+  // merge into existing settings — phases keyed by country+year, team sizes global
+  const existing = brandData[brandKey].settings || {};
+  let settings = {...existing, [phaseKey]: phases};
   if(brandKey==='tsr'){
     const el = document.getElementById('membersPerTeam_tsr');
     settings.membersPerTeam = el ? el.value || 2 : 2;
@@ -2063,11 +2092,11 @@ async function saveSettingsFor(brandKey){
   const el = document.getElementById(statusId);
   try{
     await fetch(BRANDS[brandKey].apiUrl, {method:"POST", body: JSON.stringify({type:"settings", data:settings})});
-    el.textContent = "Saved ✓";
+    el.textContent = `Saved ✓ (${country} ${year})`;
   }catch(e){
     el.textContent = "Failed to save";
   }
-  setTimeout(()=>el.textContent="", 2000);
+  setTimeout(()=>el.textContent="", 2500);
   renderSRBody(brandKey);
 }
 
