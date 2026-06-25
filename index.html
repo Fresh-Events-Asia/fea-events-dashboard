@@ -769,9 +769,9 @@ function renderSRBody(brandKey){
   const settings = {...allSettings, phases: countryPhases};
 
   // load conversion rate for current country+year
-  const convKey = `conversion_${country}_${year}`;
+  const convKey = `conv_${country}_${year}`;
   const convRate = allSettings[convKey] !== undefined ? allSettings[convKey] : null;
-  const cmpConvKey = compareYear ? `conversion_${compareCountry}_${compareYear}` : null;
+  const cmpConvKey = compareYear ? `conv_${compareCountry}_${compareYear}` : null;
   const cmpConvRate = cmpConvKey && allSettings[cmpConvKey] !== undefined ? allSettings[cmpConvKey] : null;
 
   // re-render phase def rows if country or year changed
@@ -864,21 +864,39 @@ function renderSRBody(brandKey){
     const progressCard = pctToTarget!==null ? `<div class="metric"><div class="label">% to target (reg+unreg)</div><div class="val">${pctToTarget.toFixed(1)}%</div><div style="background:var(--panel-2);border-radius:4px;height:8px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:${pctToTarget}%;background:${pctToTarget>=100?'var(--good)':'var(--accent2)'};border-radius:4px;transition:width 0.4s;"></div></div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(curr.totalTicketsRegUnreg)} / ${fmtNum(totalTarget)}</div></div>` : '';
     const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Daily run rate needed (overall)'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
     const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total campaign days (Day 0 → ${showSettings && lastPhaseEnd ? 'event date' : 'last data'})</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
-    const convCard = `<div class="metric">
-      <div class="label">Register Interest → Ticket Purchase</div>
-      ${convRate !== null
-        ? `<div class="val">${convRate}%</div>`
-        : `<div class="val" style="color:var(--text-dim); font-size:14px;">Not set</div>`
-      }
-      ${cmpConvRate !== null ? `<div class="delta flat">${compareYear} (${compareCountry}): ${cmpConvRate}%</div>` : ''}
-      <div style="display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap;">
-        <input type="number" id="conversionRate_${brandKey}" value="${convRate !== null ? convRate : ''}" placeholder="e.g. 12.5" step="0.1" min="0" max="100" style="width:90px; font-size:12px; padding:4px 6px;" />
-        <span style="font-size:12px; color:var(--text-dim);">%</span>
-        <button class="secondary" style="font-size:12px; padding:4px 10px;" onclick="saveConversionRate('${brandKey}')">Save</button>
-        <span id="convStatus_${brandKey}" style="font-size:11px; color:var(--good);"></span>
-      </div>
-      <div style="font-size:10px; color:var(--text-dim); margin-top:6px; font-style:italic;">* Based on email unique IDs</div>
-    </div>`;
+    // helper for manual input cards with pencil icon
+    function manualCard(label, fieldKey, value, cmpValue, cmpYear, cmpCountry, fmt, disclaimer, unit){
+      const displayVal = value !== null ? fmt(value)+(unit||'') : '<span style="color:var(--text-dim);font-size:14px;">Not set</span>';
+      const cmpLine = cmpValue !== null ? `<div class="delta flat">${cmpYear} (${cmpCountry}): ${fmt(cmpValue)}${unit||''}</div>` : '';
+      return `<div class="metric" id="manualCard_${brandKey}_${fieldKey}">
+        <div class="label" style="display:flex;align-items:center;gap:6px;">${label} <span onclick="toggleManualEdit('${brandKey}','${fieldKey}')" style="cursor:pointer;opacity:0.5;font-size:12px;" title="Edit">✏️</span></div>
+        <div class="val" id="manualVal_${brandKey}_${fieldKey}">${displayVal}</div>
+        ${cmpLine}
+        <div id="manualEdit_${brandKey}_${fieldKey}" style="display:none; margin-top:8px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <input type="number" id="manualInput_${brandKey}_${fieldKey}" value="${value !== null ? value : ''}" placeholder="Enter value" step="${unit==='%'?'0.1':'1'}" min="0" style="width:110px;font-size:12px;padding:4px 6px;" onkeydown="if(event.key==='Enter')saveManualMetric('${brandKey}','${fieldKey}','${unit||''}')"/>
+            ${unit ? `<span style="font-size:12px;color:var(--text-dim);">${unit}</span>` : ''}
+            <button class="secondary" style="font-size:12px;padding:4px 10px;" onclick="saveManualMetric('${brandKey}','${fieldKey}','${unit||''}')">Save</button>
+            <span id="manualStatus_${brandKey}_${fieldKey}" style="font-size:11px;color:var(--good);"></span>
+          </div>
+        </div>
+        ${disclaimer ? `<div style="font-size:10px;color:var(--text-dim);margin-top:6px;font-style:italic;">${disclaimer}</div>` : ''}
+      </div>`;
+    }
+
+    // load manual metric values
+    const regInterestKey = `regInterest_${country}_${year}`;
+    const dbKey = `totalDb_${country}_${year}`;
+    const cmpRegInterestKey = compareYear ? `regInterest_${compareCountry}_${compareYear}` : null;
+    const cmpDbKey = compareYear ? `totalDb_${compareCountry}_${compareYear}` : null;
+    const regInterest = allSettings[regInterestKey] !== undefined ? allSettings[regInterestKey] : null;
+    const totalDb = allSettings[dbKey] !== undefined ? allSettings[dbKey] : null;
+    const cmpRegInterest = cmpRegInterestKey && allSettings[cmpRegInterestKey] !== undefined ? allSettings[cmpRegInterestKey] : null;
+    const cmpTotalDb = cmpDbKey && allSettings[cmpDbKey] !== undefined ? allSettings[cmpDbKey] : null;
+
+    const convCard = manualCard('Register Interest → Ticket Purchase', 'conv', convRate, cmpConvRate, compareYear, compareCountry, v=>v, '* Based on email unique IDs', '%');
+    const regInterestCard = manualCard('Total Register Interest', 'regInterest', regInterest, cmpRegInterest, compareYear, compareCountry, fmtNum, '* Subscriber unique emails', '');
+    const totalDbCard = manualCard('Total Database', 'totalDb', totalDb, cmpTotalDb, compareYear, compareCountry, fmtNum, '* Subscriber unique emails', '');
     metricsEl.innerHTML =
       card('Tickets sold (reg+unreg)', curr.totalTicketsRegUnreg, cmp?cmp.totalTicketsRegUnreg:null, fmtNum) +
       card('Registered tickets', curr.regTickets, cmp?cmp.regTickets:null, fmtNum) +
@@ -887,7 +905,7 @@ function renderSRBody(brandKey){
       card('Registration revenue', curr.regRev, cmp?cmp.regRev:null, fmtMoney) +
       card('Add-on revenue', curr.prodRev, cmp?cmp.prodRev:null, fmtMoney) +
       card('Avg ticket price', avgPriceCurr, avgPriceCmp, fmtMoney) +
-      progressCard + runRateCard + campaignDaysCard + convCard;
+      progressCard + runRateCard + campaignDaysCard + convCard + regInterestCard + totalDbCard;
   }catch(e){ console.error('metrics render',e.message, e.stack); }
 
   try{ renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear, settings, document.getElementById('phaseTicketFilter_'+brandKey).value); }catch(e){ console.error('renderPhaseTable',e.message, e.stack); }
@@ -2071,26 +2089,43 @@ function renderPaceChart(brandKey, rows, year, settings){
 
 /* ---- Save settings ---- */
 
-async function saveConversionRate(brandKey){
+function toggleManualEdit(brandKey, fieldKey){
+  const el = document.getElementById('manualEdit_'+brandKey+'_'+fieldKey);
+  if(!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  if(isHidden){
+    const input = document.getElementById('manualInput_'+brandKey+'_'+fieldKey);
+    if(input) input.focus();
+  }
+}
+
+async function saveManualMetric(brandKey, fieldKey, unit){
   const year = document.getElementById('yearFilter_'+brandKey).value;
   const country = document.getElementById('countryFilter_'+brandKey).value;
-  const convEl = document.getElementById('conversionRate_'+brandKey);
-  const statusEl = document.getElementById('convStatus_'+brandKey);
-  const val = convEl ? parseFloat(convEl.value) : null;
-  if(val === null || isNaN(val)){ if(statusEl){ statusEl.textContent='Enter a valid %'; setTimeout(()=>statusEl.textContent='',2000); } return; }
-
-  const convKey = `conversion_${country}_${year}`;
+  const input = document.getElementById('manualInput_'+brandKey+'_'+fieldKey);
+  const statusEl = document.getElementById('manualStatus_'+brandKey+'_'+fieldKey);
+  const val = input ? parseFloat(input.value) : null;
+  if(val === null || isNaN(val)){
+    if(statusEl){ statusEl.textContent='Enter a valid value'; setTimeout(()=>statusEl.textContent='',2000); }
+    return;
+  }
+  // key by fieldKey_country_year
+  const storageKey = `${fieldKey}_${country}_${year}`;
   const existing = brandData[brandKey].settings || {};
-  const settings = {...existing, [convKey]: val};
+  const settings = {...existing, [storageKey]: val};
   brandData[brandKey].settings = settings;
-
   try{
     await fetch(BRANDS[brandKey].apiUrl, {method:"POST", body: JSON.stringify({type:"settings", data:settings})});
-    if(statusEl){ statusEl.textContent=`Saved ✓`; setTimeout(()=>statusEl.textContent='',2000); }
+    if(statusEl){ statusEl.textContent='Saved ✓'; setTimeout(()=>statusEl.textContent='',2000); }
   }catch(e){
     if(statusEl){ statusEl.textContent='Failed'; setTimeout(()=>statusEl.textContent='',2000); }
   }
   renderSRBody(brandKey);
+}
+
+async function saveConversionRate(brandKey){
+  await saveManualMetric(brandKey, 'conv', '%');
 }
 
 async function saveSettingsFor(brandKey){
