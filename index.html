@@ -454,9 +454,12 @@ function renderTrafficSection(brandKey, rows, cmpRows, tsr1Rows, year, compareYe
   crOpts.plugins = crOpts.plugins||{};
   crOpts.plugins.tooltip = {callbacks:{
     title:items=>{
-      const d=items[0].dataIndex + firstCrDay;
-      const dt=s1.dayToDate[d];
-      return `Day ${d}${dt?' — '+fmtMYT(dt):''}`;
+      const d = items[0].dataIndex + firstCrDay;
+      const dt1 = s1.dayToDate[d];
+      const dt2 = s2 ? s2.dayToDate[d] : null;
+      const dates = [dt1, dt2].filter(Boolean).map(dt=>fmtMYT(dt));
+      const unique = [...new Set(dates)];
+      return `Day ${d}${unique.length ? ' — ' + unique.join(' / ') : ''}`;
     },
     label:ctx=>` CR: ${ctx.parsed.y!==null?ctx.parsed.y.toFixed(2)+'%':'no data'}`
   }};
