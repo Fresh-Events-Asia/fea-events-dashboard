@@ -440,6 +440,10 @@ function renderTrafficSection(brandKey, rows, cmpRows, tsr1Rows, year, compareYe
     return cmpCrByDate[key] ?? null;
   }) : null;
 
+  console.log('[CR] 2025 cmpCrByDate entries:', Object.keys(cmpCrByDate).length);
+  console.log('[CR] s2 exists:', !!s2, 'compareYear:', compareYear);
+  console.log('[CR] cmpCrData non-null count:', cmpCrData ? cmpCrData.filter(v=>v!==null).length : 'N/A');
+
   // trim x-axis to first day with CR data in EITHER year
   const allCrData = crData.map((v,i)=>v ?? (cmpCrData?.[i] ?? null));
   const firstCrDay = allCrData.findIndex(v=>v!==null);
@@ -633,11 +637,11 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
     // row 1: totals only
     `<div class="metric"><div class="label">${fbIcon}${igIcon} Total Reach</div><div class="val">${fmtNum(fbReach+igReach)}</div>${deltaLine(fbReach+igReach,(cmpFbReach!==null&&cmpIgReach!==null)?cmpFbReach+cmpIgReach:null,fmtNum)}</div>` +
     `<div class="metric"><div class="label">${fbIcon}${igIcon} Total Views</div><div class="val">${fmtNum(fbViews+igViews)}</div>${deltaLine(fbViews+igViews,(cmpFbViews!==null&&cmpIgViews!==null)?cmpFbViews+cmpIgViews:null,fmtNum)}</div>` +
-    // row 2: FB Reach, FB Views (IR below Views), IG Reach, IG Views (IR below Views)
-    `<div class="metric"><div class="label">${fbIcon} Reach</div><div class="val">${fmtNum(fbReach)}</div>${deltaLine(fbReach,cmpFbReach,fmtNum)}</div>` +
-    `<div class="metric"><div class="label">${fbIcon} Views</div><div class="val">${fmtNum(fbViews)}</div>${deltaLine(fbViews,cmpFbViews,fmtNum)}<div class="delta flat">Avg IR: ${(avgFBRate*100).toFixed(1)}%${cmpAvgFBRate!==null?' · '+compareYear+': '+(cmpAvgFBRate*100).toFixed(1)+'%':''}</div></div>` +
-    `<div class="metric"><div class="label">${igIcon} Reach</div><div class="val">${fmtNum(igReach)}</div>${deltaLine(igReach,cmpIgReach,fmtNum)}</div>` +
-    `<div class="metric"><div class="label">${igIcon} Views</div><div class="val">${fmtNum(igViews)}</div>${deltaLine(igViews,cmpIgViews,fmtNum)}<div class="delta flat">Avg IR: ${(avgIGRate*100).toFixed(1)}%${cmpAvgIGRate!==null?' · '+compareYear+': '+(cmpAvgIGRate*100).toFixed(1)+'%':''}</div></div>`;
+    // row 2: FB Reach (with IR), FB Views, IG Reach (with IR), IG Views
+    `<div class="metric"><div class="label">${fbIcon} Reach</div><div class="val">${fmtNum(fbReach)}</div>${deltaLine(fbReach,cmpFbReach,fmtNum)}<div class="delta flat">Avg IR: ${(avgFBRate*100).toFixed(1)}%${cmpAvgFBRate!==null?' · '+compareYear+': '+(cmpAvgFBRate*100).toFixed(1)+'%':''}</div></div>` +
+    `<div class="metric"><div class="label">${fbIcon} Views</div><div class="val">${fmtNum(fbViews)}</div>${deltaLine(fbViews,cmpFbViews,fmtNum)}</div>` +
+    `<div class="metric"><div class="label">${igIcon} Reach</div><div class="val">${fmtNum(igReach)}</div>${deltaLine(igReach,cmpIgReach,fmtNum)}<div class="delta flat">Avg IR: ${(avgIGRate*100).toFixed(1)}%${cmpAvgIGRate!==null?' · '+compareYear+': '+(cmpAvgIGRate*100).toFixed(1)+'%':''}</div></div>` +
+    `<div class="metric"><div class="label">${igIcon} Views</div><div class="val">${fmtNum(igViews)}</div>${deltaLine(igViews,cmpIgViews,fmtNum)}</div>`;
 
   // phase annotation helper - label only on hover, at top
   function buildContentPhaseAnnotations(dataRows){
