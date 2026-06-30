@@ -711,7 +711,7 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
     igCtx.onclick = e=>{
       const els = igChartInst.getElementsAtEventForMode(e,'index',{intersect:false},false);
       if(!els.length) return;
-      const link = (igData[els[0].index]?.[igLinkC]||'').toString().trim();
+      const link = (igData[els[0].index] && igData[els[0].index][igLinkC] || '').toString().trim();
       if(link) window.open(link,'_blank');
     };
   }
@@ -746,7 +746,7 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
     fbCtx.onclick = e=>{
       const els = fbChartInst.getElementsAtEventForMode(e,'index',{intersect:false},false);
       if(!els.length) return;
-      const link = (fbData[els[0].index]?.[fbLinkC]||'').toString().trim();
+      const link = (fbData[els[0].index] && fbData[els[0].index][fbLinkC] || '').toString().trim();
       if(link) window.open(link,'_blank');
     };
   }
