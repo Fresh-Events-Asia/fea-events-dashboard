@@ -1494,8 +1494,64 @@ function renderSRBody(brandKey){
       return `<div class="metric"><div class="label">${label}</div><div class="val">${fmt(val)}</div><div class="delta ${up?'up':'down'}">${up?'▲':'▼'} vs ${compareYear}: ${fmt(cmpVal)}${pctChange!==null?' ('+(pctChange>=0?'+':'')+pctChange.toFixed(1)+'%)':''}</div></div>`;
     }
     const progressCard = pctToTarget!==null ? `<div class="metric"><div class="label">% to target (reg+unreg)</div><div class="val">${pctToTarget.toFixed(1)}%</div><div style="background:var(--panel-2);border-radius:4px;height:8px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:${pctToTarget}%;background:${pctToTarget>=100?'var(--good)':'var(--accent2)'};border-radius:4px;transition:width 0.4s;"></div></div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(curr.totalTicketsRegUnreg)} / ${fmtNum(totalTarget)}</div></div>` : '';
-    const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Daily run rate needed (overall)'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
-    const daysLeftCard = (showSettings && !saleEnded && daysLeftVal !== null && daysLeftVal > 0) ? `<div class="metric"><div class="label">Days Left to Event / Registration Close</div><div class="val" style="color:${daysLeftVal<=7?'var(--bad)':daysLeftVal<=14?'var(--accent)':'var(--text)'}">${daysLeftVal} days</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtMYT(lastPhaseEnd)}</div></div>` : '';
+    const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Target daily tickets'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
+
+    // projected final tickets based on last 14 days trend
+    let projectedCard = '';
+    if(showSettings && !saleEnded && daysLeftVal > 0){
+      // build daily tickets for last 14 days
+      const today14 = new Date(Date.now() + 8*60*60*1000);
+      const cutoff14 = new Date(today14.getTime() - 14*24*60*60*1000);
+      const last14Rows = viewRows.filter(r=>{
+        const d = parseMYT(r['Date cleaned (DD/MM/YYYY)']);
+        return !isNaN(d) && d >= cutoff14;
+      });
+      // compute total tickets in last 14 days using same reg+unreg logic
+      const isOne = v => v===1||v==='1'||v===true||Number(v)===1;
+      const mpt = settings.membersPerTeam ? parseInt(settings.membersPerTeam)+1 : 3;
+      const dm = settings.doublesMembers ? parseInt(settings.doublesMembers)+1 : 2;
+      const trm = settings.teamRelayMembers ? parseInt(settings.teamRelayMembers)+1 : 4;
+      let tickets14 = 0;
+      last14Rows.forEach(r=>{
+        const cat = r['Category'];
+        if(brandKey==='tsr' && cat==='Team') tickets14 += isOne(r['Team Captain']) ? mpt : 0;
+        else if(brandKey==='rl' && cat==='Doubles') tickets14 += isOne(r['Doubles Captain']) ? dm : 0;
+        else if(brandKey==='rl' && cat==='Team Relay') tickets14 += isOne(r['Team Relay Captain']) ? trm : 0;
+        else tickets14 += parseInt(r['Ticket Count'])||0;
+      });
+      const avgDaily14 = tickets14 / 14;
+      const projected = Math.round(curr.totalTicketsRegUnreg + avgDaily14 * daysLeftVal);
+      const vsTarget = totalTarget > 0 ? ` (${projected >= totalTarget ? '+' : ''}${fmtNum(projected - totalTarget)} vs target)` : '';
+      const projColor = totalTarget > 0 ? (projected >= totalTarget ? 'var(--good)' : 'var(--bad)') : 'var(--text)';
+
+      // projected revenue: avg daily rev last 14 days × days left + current rev
+      let rev14 = 0;
+      last14Rows.forEach(r=>{ rev14 += (parseFloat(r['Registration Rev'])||0) + (parseFloat(r['Products Rev'])||0); });
+      const avgDailyRev14 = rev14 / 14;
+      const projectedRev = curr.totalRev + avgDailyRev14 * daysLeftVal;
+
+      projectedCard = `<div class="metric"><div class="label">Projected (last 14 days trend)</div>
+        <div class="val" style="color:${projColor}">${fmtNum(projected)} tickets</div>
+        <div style="font-size:13px;font-weight:600;margin-top:4px;">${fmtMoney(Math.round(projectedRev))}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(Math.round(avgDaily14))}/day · ${fmtMoney(Math.round(avgDailyRev14))}/day avg${vsTarget}</div>
+      </div>`;
+    }
+
+    // target section below main metrics
+    const targetSection = document.getElementById('targetSection_'+brandKey) || (() => {
+      const s = document.createElement('div'); s.id = 'targetSection_'+brandKey; metricsEl.after(s); return s;
+    })();
+    if(progressCard || runRateCard || daysLeftCard || projectedCard){
+      targetSection.innerHTML = `
+        <div style="border-top:1px solid var(--line); margin:0 0 16px 0;"></div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:22px;">
+          ${progressCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${progressCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${runRateCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${runRateCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${daysLeftCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${daysLeftCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${projectedCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${projectedCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+        </div>`;
+    } else { targetSection.innerHTML = ''; }
+
     const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total ticket sales days (Day 0 → ${showSettings && lastPhaseEnd ? 'event date' : 'last data'})</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
     // helper for manual input cards with pencil icon
     function manualCard(label, fieldKey, value, cmpValue, cmpYear, cmpCountry, fmt, disclaimer, unit, lastUpdated){
@@ -1549,20 +1605,6 @@ function renderSRBody(brandKey){
       campaignDaysCard + convCard + regInterestCard + totalDbCard;
 
     // target + run rate in separate centred section below
-    const targetSection = document.getElementById('targetSection_'+brandKey) || (() => {
-      const s = document.createElement('div'); s.id = 'targetSection_'+brandKey; metricsEl.after(s); return s;
-    })();
-    if(progressCard || runRateCard || daysLeftCard){
-      targetSection.innerHTML = `
-        <div style="border-top:1px solid var(--line); margin:0 0 16px 0;"></div>
-        <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:22px;">
-          ${progressCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${progressCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-          ${runRateCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${runRateCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-          ${daysLeftCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${daysLeftCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-        </div>`;
-    } else {
-      targetSection.innerHTML = '';
-    }
   }catch(e){ console.error('metrics render',e.message, e.stack); }
 
   try{ renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear, settings, document.getElementById('phaseTicketFilter_'+brandKey).value); }catch(e){ console.error('renderPhaseTable',e.message, e.stack); }
