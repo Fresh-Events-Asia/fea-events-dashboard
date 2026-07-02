@@ -1420,7 +1420,9 @@ function renderSRBody(brandKey){
       if(countryPhases.length){
         countryPhases.forEach(p=>addPhaseDefRow(brandKey, p.name, p.start, p.end, p.target));
       } else {
-        renderPhaseDefRows(brandKey);
+        // no phases for this country+year — show one empty row
+        container.innerHTML = '';
+        addPhaseDefRow(brandKey, '', '', '', '');
       }
     }
   }
