@@ -2293,13 +2293,18 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
   }
 
   // ---- Nationality chart ----
-  const sortedNat = Object.entries(natMap).sort((a,b)=>b[1]-a[1]);
-  const top10 = sortedNat.slice(0,10);
-  const othersSum = sortedNat.slice(10).reduce((a,b)=>a+b[1],0);
-  const natLabels = top10.map(e=>e[0]);
-  const natVals = top10.map(e=>e[1]);
+  // Build top 10 from combined totals of both years so compare year doesn't lose entries
+  const combinedNatMap = {...natMap};
+  if(hasCompare && cmpNatMap){
+    Object.entries(cmpNatMap).forEach(([k,v])=>{ combinedNatMap[k] = (combinedNatMap[k]||0) + v; });
+  }
+  const sortedNat = Object.entries(combinedNatMap).sort((a,b)=>b[1]-a[1]);
+  const top10Keys = sortedNat.slice(0,10).map(e=>e[0]);
+  const natLabels = [...top10Keys];
+  const natVals = top10Keys.map(k=>natMap[k]||0);
+  const othersSum = Object.entries(natMap).filter(([k])=>!top10Keys.includes(k)).reduce((a,[,v])=>a+v,0);
   if(othersSum>0){ natLabels.push('Others'); natVals.push(othersSum); }
-  const natTotal = natVals.reduce((a,b)=>a+b,0);
+  const natTotal = Object.values(natMap).reduce((a,b)=>a+b,0);
 
   const nCtx = document.getElementById('nationalityChart_'+brandKey);
   destroyChart('nationalityChart_'+brandKey);
@@ -2308,8 +2313,7 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
   if(hasCompare){
     const cmpNatVals = natLabels.map(l=>{
       if(l==='Others'){
-        const cmpSorted = Object.entries(cmpNatMap).sort((a,b)=>b[1]-a[1]);
-        return cmpSorted.slice(10).reduce((a,b)=>a+b[1],0);
+        return Object.entries(cmpNatMap).filter(([k])=>!top10Keys.includes(k)).reduce((a,[,v])=>a+v,0);
       }
       return cmpNatMap[l]||0;
     });
@@ -2346,14 +2350,14 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     const intlTotal = natTotal - myTotal;
     const myPct = natTotal>0 ? (myTotal/natTotal*100).toFixed(1) : 0;
     const intlPct = natTotal>0 ? (intlTotal/natTotal*100).toFixed(1) : 0;
-    let splitHtml = `<span>🇲🇾 Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span>🌏 International: <strong style="color:var(--text)">${intlPct}%</strong></span>`;
+    let splitHtml = `<span>Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span style="margin-left:16px;">International: <strong style="color:var(--text)">${intlPct}%</strong></span>`;
     if(hasCompare && cmpNatMap){
       const cmpMyTotal = Object.entries(cmpNatMap).filter(([k])=>k.toLowerCase().includes('malaysia')).reduce((a,[,v])=>a+v,0);
       const cmpNatTotalAll = Object.values(cmpNatMap).reduce((a,b)=>a+b,0);
       const cmpIntlTotal = cmpNatTotalAll - cmpMyTotal;
       const cmpMyPct = cmpNatTotalAll>0 ? (cmpMyTotal/cmpNatTotalAll*100).toFixed(1) : 0;
       const cmpIntlPct = cmpNatTotalAll>0 ? (cmpIntlTotal/cmpNatTotalAll*100).toFixed(1) : 0;
-      splitHtml += `<span style="margin-left:8px;opacity:0.6;">${compareYear}: 🇲🇾 ${cmpMyPct}% · 🌏 ${cmpIntlPct}%</span>`;
+      splitHtml += `<span style="margin-left:16px;opacity:0.6;">${compareYear}: Malaysian ${cmpMyPct}% · International ${cmpIntlPct}%</span>`;
     }
     natSplitEl.innerHTML = splitHtml;
   }
