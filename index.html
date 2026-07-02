@@ -1537,21 +1537,6 @@ function renderSRBody(brandKey){
       </div>`;
     }
 
-    // target section below main metrics
-    const targetSection = document.getElementById('targetSection_'+brandKey) || (() => {
-      const s = document.createElement('div'); s.id = 'targetSection_'+brandKey; metricsEl.after(s); return s;
-    })();
-    if(progressCard || runRateCard || daysLeftCard || projectedCard){
-      targetSection.innerHTML = `
-        <div style="border-top:1px solid var(--line); margin:0 0 16px 0;"></div>
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:22px;">
-          ${progressCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${progressCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-          ${runRateCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${runRateCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-          ${daysLeftCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${daysLeftCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-          ${projectedCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${projectedCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
-        </div>`;
-    } else { targetSection.innerHTML = ''; }
-
     const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total ticket sales days (Day 0 → ${showSettings && lastPhaseEnd ? 'event date' : 'last data'})</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
     // helper for manual input cards with pencil icon
     function manualCard(label, fieldKey, value, cmpValue, cmpYear, cmpCountry, fmt, disclaimer, unit, lastUpdated){
@@ -1604,7 +1589,21 @@ function renderSRBody(brandKey){
       card('Avg ticket price', avgPriceCurr, avgPriceCmp, fmtMoney) +
       campaignDaysCard + convCard + regInterestCard + totalDbCard;
 
-    // target + run rate in separate centred section below
+    // target section below main metrics - inside try block so variables are in scope
+    const targetSection = document.getElementById('targetSection_'+brandKey) || (() => {
+      const s = document.createElement('div'); s.id = 'targetSection_'+brandKey; metricsEl.after(s); return s;
+    })();
+    if(progressCard || runRateCard || daysLeftCard || projectedCard){
+      targetSection.innerHTML = `
+        <div style="border-top:1px solid var(--line); margin:0 0 16px 0;"></div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:22px;">
+          ${progressCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${progressCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${runRateCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${runRateCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${daysLeftCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${daysLeftCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+          ${projectedCard ? `<div style="flex:1; min-width:200px; max-width:320px;" class="metric">${projectedCard.replace(/^<div class="metric">/, '').replace(/<\/div>$/, '')}</div>` : ''}
+        </div>`;
+    } else { targetSection.innerHTML = ''; }
+
   }catch(e){ console.error('metrics render',e.message, e.stack); }
 
   try{ renderPhaseTable(brandKey, viewRows, cmpRows, year, compareYear, settings, document.getElementById('phaseTicketFilter_'+brandKey).value); }catch(e){ console.error('renderPhaseTable',e.message, e.stack); }
@@ -2542,18 +2541,28 @@ function buildPhaseAnnotations(rows, years, seriesList){
     const s = seriesList[yi];
     if(!s || !s.start) return;
     const phases = getPhaseOffsets(rows, year, s.start);
+
+    // merge phases that land on the same dayOffset
+    const byDay = {};
     phases.forEach(({name, dayOffset})=>{
       if(dayOffset > s.lastDayWithData + 5) return;
+      if(!byDay[dayOffset]) byDay[dayOffset] = [];
+      // only add if name not already included
+      if(!byDay[dayOffset].includes(name)) byDay[dayOffset].push(name);
+    });
+
+    Object.entries(byDay).forEach(([dayOffset, names])=>{
+      const label = names.join('/') + ` (${year})`;
       annotations.push({
         type:'line',
-        xMin: dayOffset,
-        xMax: dayOffset,
+        xMin: Number(dayOffset),
+        xMax: Number(dayOffset),
         borderColor: yearColors[yi],
         borderWidth: 1.5,
         borderDash: [4,3],
         label:{
           display: false,
-          content: `${name} (${year})`,
+          content: label,
           backgroundColor: 'rgba(14,26,20,0.9)',
           color: labelColors[yi],
           font:{size:10, weight:'600'},
