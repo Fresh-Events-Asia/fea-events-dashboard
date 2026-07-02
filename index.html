@@ -2176,10 +2176,39 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     return counts;
   }
 
+  // normalize nationality strings to canonical country names
+  function normalizeNat(s){
+    if(!s) return 'Unknown';
+    const t = s.toString().trim();
+    const map = {
+      'malaysian':'Malaysia','malaysia':'Malaysia',
+      'indian':'India','india':'India',
+      'singaporean':'Singapore','singapore':'Singapore',
+      'indonesian':'Indonesia','indonesia':'Indonesia',
+      'chinese':'China','china':'China',
+      'filipino':'Philippines','philippine':'Philippines','philippines':'Philippines',
+      'thai':'Thailand','thailand':'Thailand',
+      'japanese':'Japan','japan':'Japan',
+      'korean':'South Korea','south korea':'South Korea','korea':'South Korea',
+      'british':'United Kingdom','uk':'United Kingdom','united kingdom':'United Kingdom',
+      'american':'United States','usa':'United States','united states':'United States',
+      'australian':'Australia','australia':'Australia',
+      'bangladeshi':'Bangladesh','bangladesh':'Bangladesh',
+      'pakistani':'Pakistan','pakistan':'Pakistan',
+      'sri lankan':'Sri Lanka','sri lanka':'Sri Lanka',
+      'nepalese':'Nepal','nepal':'Nepal',
+      'myanmar':'Myanmar','burmese':'Myanmar',
+      'vietnamese':'Vietnam','vietnam':'Vietnam',
+      'cambodian':'Cambodia','cambodia':'Cambodia',
+    };
+    return map[t.toLowerCase()] || t;
+  }
+
   function getNatMap(data){
     const m = {};
     data.forEach(r=>{
-      const c = (r['Nationality']||r['Country']||'Unknown').toString().trim();
+      const raw = (r['Nationality']||r['Country']||'Unknown').toString().trim();
+      const c = normalizeNat(raw);
       m[c] = (m[c]||0) + (parseInt(r['Ticket Count'])||0);
     });
     return m;
@@ -2350,7 +2379,8 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     const intlTotal = natTotal - myTotal;
     const myPct = natTotal>0 ? (myTotal/natTotal*100).toFixed(1) : 0;
     const intlPct = natTotal>0 ? (intlTotal/natTotal*100).toFixed(1) : 0;
-    let splitHtml = `<span>Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span style="margin-left:16px;">International: <strong style="color:var(--text)">${intlPct}%</strong></span>`;
+    const intlCountries = Object.keys(natMap).filter(k=>!k.toLowerCase().includes('malaysia') && k!=='Unknown').length;
+    let splitHtml = `<span>Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span style="margin-left:16px;">International: <strong style="color:var(--text)">${intlPct}%</strong> <span style="color:var(--text-dim);font-size:11px;">(${intlCountries} countries)</span></span>`;
     if(hasCompare && cmpNatMap){
       const cmpMyTotal = Object.entries(cmpNatMap).filter(([k])=>k.toLowerCase().includes('malaysia')).reduce((a,[,v])=>a+v,0);
       const cmpNatTotalAll = Object.values(cmpNatMap).reduce((a,b)=>a+b,0);
