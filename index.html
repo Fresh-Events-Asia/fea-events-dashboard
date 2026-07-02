@@ -927,6 +927,7 @@ function renderOverview(){
 
     const curr = computeBrandYearMetrics(currRows, latestYear, b.key, data.settings);
     const prev = prevRows && prevRows.length>0 ? computeBrandYearMetrics(prevRows, prevYear, b.key, data.settings) : null;
+    _currentViewCountry = selectedCountry;
 
     function row(label, currVal, prevVal, fmt){
       const prevStr = (prevVal!==null && prevVal!==undefined) ? ` <span class="bprev">(${fmt(prevVal)})</span>` : '';
