@@ -441,9 +441,6 @@ function renderTrafficSection(brandKey, rows, cmpRows, tsr1Rows, year, compareYe
     return parseFloat(((tickets/users)*100).toFixed(2));
   }) : null;
 
-  console.log('[CR] 2026 non-null:', crData.filter(v=>v!==null).length);
-  console.log('[CR] 2025 non-null:', cmpCrData ? cmpCrData.filter(v=>v!==null).length : 'N/A');
-
   // trim x-axis to first day with CR data in current year only
   // (compare year may have data at different day offsets)
   const firstCrDay = crData.findIndex(v=>v!==null);
@@ -604,13 +601,6 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
   const igViewsC = '[Social]\nIG\nViews';
   const igIRC = '[Social]\nIG\nInteraction Rate';
 
-  // debug: log first row keys to verify column names
-  if(rows.length) {
-    const sampleKeys = Object.keys(rows[0]).filter(k=>k.includes('Social'));
-    console.log('[Social] column keys:', sampleKeys);
-    console.log('[Social] sample igCN value:', rows[0][igCN]);
-  }
-
   const fbReach = rows.reduce((a,r)=>a+(parseFloat(r[fbReachC])||0),0);
   const fbViews = rows.reduce((a,r)=>a+(parseFloat(r[fbViewsC])||0),0);
   const fbIRRows = rows.filter(r=>parseFloat(r[fbIRC])||0);
@@ -696,7 +686,6 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
     const v = r[igCN];
     return v !== null && v !== undefined && v.toString().trim() !== '';
   });
-  console.log('[IG] igData rows:', igData.length);
   const igNames = igData.map(r=>(r[igCN]||'').toString().trim());
   const igShort = igNames.map(n=>n.length>20?n.substring(0,20)+'…':n);
   const igViewsArr = igData.map(r=>parseFloat(r[igViewsC])||0);
@@ -729,7 +718,6 @@ function renderSocialSection(brandKey, rows, year, compareYear, allRows){
     const v = r[fbCN];
     return v !== null && v !== undefined && v.toString().trim() !== '';
   });
-  console.log('[FB] fbData rows:', fbData.length);
   const fbNames = fbData.map(r=>(r[fbCN]||'').toString().trim());
   const fbShort = fbNames.map(n=>n.length>20?n.substring(0,20)+'…':n);
   const fbViewsArr = fbData.map(r=>parseFloat(r[fbViewsC])||0);
@@ -1181,7 +1169,7 @@ function brandPageHTML(brandKey){
       <div class="panel" style="margin-bottom:0;">
         <h2>Nationality (Top 10)</h2>
         <div style="position:relative; height:220px;"><canvas id="nationalityChart_${brandKey}"></canvas></div>
-        <div id="natSplit_${brandKey}" style="margin-top:10px; font-size:12px; color:var(--text-dim); display:flex; gap:16px; flex-wrap:wrap;"></div>
+        <div id="natSplit_${brandKey}" style="margin-top:10px; font-size:10.5px; color:var(--text-dim); display:flex; gap:12px; flex-wrap:wrap;"></div>
       </div>
       <div class="panel" style="margin-bottom:0;">
         <div class="panel-head" style="margin-bottom:12px;">
@@ -1864,8 +1852,6 @@ function renderSubEventTable(brandKey, viewRows, cmpRows, year, compareYear, set
     const fromVal = fromEl ? fromEl.value : ''; // YYYY-MM-DD from browser
     const toVal = toEl ? toEl.value : '';
     if(!fromVal && !toVal) return rows;
-    // debug: log first row's date value
-    if(rows.length) console.log('[dateFilter] sample date value:', rows[0]['Date cleaned (DD/MM/YYYY)'], '→ YMD:', toYMD(rows[0]['Date cleaned (DD/MM/YYYY)']), 'fromVal:', fromVal, 'toVal:', toVal);
     return rows.filter(r=>{
       const rowYMD = toYMD(r['Date cleaned (DD/MM/YYYY)']);
       if(!rowYMD) return false;
@@ -2367,7 +2353,7 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
       },
       scales:{
         x:{ticks:{color:'#8FA999', callback:v=>fmtNum(v)}, grid:{color:'rgba(143,169,153,0.15)'}},
-        y:{ticks:{color:'#EAF2EC', font:{size:11}}, grid:{display:false}}
+        y:{ticks:{color:'#EAF2EC', font:{size:10}, autoSkip:false}, grid:{display:false}}
       }
     }
   });
@@ -2380,15 +2366,7 @@ function renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear){
     const myPct = natTotal>0 ? (myTotal/natTotal*100).toFixed(1) : 0;
     const intlPct = natTotal>0 ? (intlTotal/natTotal*100).toFixed(1) : 0;
     const intlCountries = Object.keys(natMap).filter(k=>!k.toLowerCase().includes('malaysia') && k!=='Unknown').length;
-    let splitHtml = `<span>Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span style="margin-left:16px;">International: <strong style="color:var(--text)">${intlPct}%</strong> <span style="color:var(--text-dim);font-size:11px;">(${intlCountries} countries)</span></span>`;
-    if(hasCompare && cmpNatMap){
-      const cmpMyTotal = Object.entries(cmpNatMap).filter(([k])=>k.toLowerCase().includes('malaysia')).reduce((a,[,v])=>a+v,0);
-      const cmpNatTotalAll = Object.values(cmpNatMap).reduce((a,b)=>a+b,0);
-      const cmpIntlTotal = cmpNatTotalAll - cmpMyTotal;
-      const cmpMyPct = cmpNatTotalAll>0 ? (cmpMyTotal/cmpNatTotalAll*100).toFixed(1) : 0;
-      const cmpIntlPct = cmpNatTotalAll>0 ? (cmpIntlTotal/cmpNatTotalAll*100).toFixed(1) : 0;
-      splitHtml += `<span style="margin-left:16px;opacity:0.6;">${compareYear}: Malaysian ${cmpMyPct}% · International ${cmpIntlPct}%</span>`;
-    }
+    const splitHtml = `<span style="white-space:nowrap;">Malaysian: <strong style="color:var(--text)">${myPct}%</strong></span><span style="white-space:nowrap;">International: <strong style="color:var(--text)">${intlPct}%</strong> <span style="color:var(--text-dim);font-size:9.5px;">(${intlCountries} countries)</span></span>`;
     natSplitEl.innerHTML = splitHtml;
   }
 
