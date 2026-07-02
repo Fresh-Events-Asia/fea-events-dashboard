@@ -196,7 +196,15 @@ let brandData = {}; // {tsr:{rows:[...], settings:{...}}, rl:{rows:[...], settin
 let chartInstances = {}; // keyed by canvas id
 
 function fmtNum(n){ return Math.round(n).toLocaleString(); }
-function fmtMoney(n){ return 'RM' + Math.round(n).toLocaleString(); }
+function getCurrency(country){
+  if(!country) return 'RM';
+  const c = country.toString().toLowerCase();
+  if(c.includes('thai')) return 'THB';
+  if(c.includes('singapore')) return 'SGD';
+  return 'RM';
+}
+let _currentViewCountry = 'Malaysia'; // updated on each renderSRBody call
+function fmtMoney(n){ return getCurrency(_currentViewCountry) + Math.round(n).toLocaleString(); }
 
 function toggleMobileMenu(){
   const menu = document.getElementById('mobileMenu');
@@ -880,7 +888,7 @@ function renderOverview(){
     const countryOpts = countries.map(c=>`<option value="${c}"${c===selectedCountry?' selected':''}>${c}</option>`).join('');
 
     const filteredRows = data.rows.filter(r=>r['Country']===selectedCountry);
-    const years = [...new Set(data.rows.map(r=>getEventYear(r)).filter(Boolean))].sort();
+    const years = [...new Set(filteredRows.map(r=>getEventYear(r)).filter(Boolean))].sort();
     const latestYear = years[years.length-1];
     const prevYear = years.length>1 ? years[years.length-2] : null;
 
@@ -890,7 +898,7 @@ function renderOverview(){
     // compute event status for overview
     function getEventStatusBadge(settings, country, year){
       const phaseKey = `phases_${country}_${year}`;
-      const phases = (settings[phaseKey] || []).filter(p=>p.end);
+      const phases = (settings[phaseKey] || (country==='Malaysia' ? settings.phases || [] : [])).filter(p=>p.end);
       if(!phases.length) return '';
       const lastEnd = parseMYT(phases.sort((a,b)=>parseMYT(a.end)-parseMYT(b.end))[phases.length-1].end);
       const nowMs = Date.now() + 8*60*60*1000;
@@ -948,7 +956,7 @@ function renderOverview(){
     </div>`;
 
     // render YOY chart after DOM is updated
-    setTimeout(()=>renderYOYChart(b.key, filteredRows, years, data.settings), 0);
+    setTimeout(()=>{ _currentViewCountry = selectedCountry; renderYOYChart(b.key, filteredRows, years, data.settings); }, 0);
   });
 }
 
@@ -1387,6 +1395,7 @@ function renderSRBody(brandKey){
   const year = document.getElementById('yearFilter_'+brandKey).value;
   const compareYear = document.getElementById('compareYearFilter_'+brandKey).value;
   const country = document.getElementById('countryFilter_'+brandKey).value;
+  _currentViewCountry = country;
   const compareCountry = document.getElementById('compareCountryFilter_'+brandKey).value;
 
   // filter rows by year+country for each view
@@ -1402,7 +1411,8 @@ function renderSRBody(brandKey){
   // load country+year specific phase settings
   const allSettings = brandData[brandKey].settings || {};
   const phaseKey = `phases_${country}_${year}`;
-  const countryPhases = allSettings[phaseKey] || [];
+  // phases saved under country+year key; fall back to legacy 'phases' key only if this is the first load
+  const countryPhases = allSettings[phaseKey] !== undefined ? allSettings[phaseKey] : (allSettings.phases || []);
   const settings = {...allSettings, phases: countryPhases};
 
   // load conversion rate for current country+year
@@ -1447,6 +1457,14 @@ function renderSRBody(brandKey){
     const todayMYTQuick = parseMYT(todayStr);
     const dLeft = Math.ceil((lastPhaseEnd - todayMYTQuick)/(1000*60*60*24));
     daysLeftVal = dLeft > 0 ? dLeft : 0;
+  }
+
+  // compute saleEnded for status badge (independent of showSettings)
+  if(lastPhaseEnd){
+    const nowMs2 = Date.now() + 8*60*60*1000;
+    const todayStr2 = new Date(nowMs2).toISOString().slice(0,10);
+    const todayMYT2 = parseMYT(todayStr2);
+    saleEnded = todayMYT2 >= lastPhaseEnd;
   }
 
   let shortBy = 0;
@@ -1645,10 +1663,10 @@ function renderSRBody(brandKey){
   if(notesLabelEl) notesLabelEl.textContent = `Notes for ${country} ${year}`;
   if(notesUpdatedEl) notesUpdatedEl.textContent = notesTs ? `Last saved: ${notesTs}` : '';
 
-  // update event status badge
+  // update event status badge - show for any year with phases
   const statusBadgeEl = document.getElementById('eventStatusBadge_'+brandKey);
   if(statusBadgeEl){
-    if(!showSettings || !lastPhaseEnd){
+    if(!lastPhaseEnd){
       statusBadgeEl.textContent = '';
       statusBadgeEl.style.background = 'transparent';
     } else if(saleEnded){
