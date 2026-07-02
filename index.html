@@ -839,6 +839,21 @@ function populateCountryFilter(selectEl, rows){
   }
 }
 
+function populateCompareCountryFilter(selectEl, rows){
+  const countries = [...new Set(rows.map(r=>r['Country']).filter(Boolean))].sort();
+  const prevVal = selectEl.value;
+  selectEl.innerHTML = '<option value="">None</option>' + countries.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(prevVal && (prevVal==='' || countries.includes(prevVal))){
+    selectEl.value = prevVal;
+  } else if(countries.includes('Malaysia')){
+    selectEl.value = 'Malaysia';
+  } else if(countries.length){
+    selectEl.value = countries[0];
+  }
+}
+
+const overviewCountrySelection = {};
+
 function renderOverview(){
   const brandList = [
     {key:'tsr', label:'The Sky Race'},
@@ -859,8 +874,9 @@ function renderOverview(){
     const countries = [...new Set(data.rows.map(r=>r['Country']).filter(Boolean))].sort();
     const defaultCountry = countries.includes('Malaysia') ? 'Malaysia' : (countries[0]||'');
     const countryId = `overviewCountry_${b.key}`;
-    const existingEl = document.getElementById(countryId);
-    const selectedCountry = (existingEl && countries.includes(existingEl.value)) ? existingEl.value : defaultCountry;
+    // use stored selection if valid, otherwise default
+    const storedCountry = overviewCountrySelection[b.key];
+    const selectedCountry = (storedCountry && countries.includes(storedCountry)) ? storedCountry : defaultCountry;
     const countryOpts = countries.map(c=>`<option value="${c}"${c===selectedCountry?' selected':''}>${c}</option>`).join('');
 
     const filteredRows = data.rows.filter(r=>r['Country']===selectedCountry);
@@ -874,7 +890,7 @@ function renderOverview(){
     // compute event status for overview
     function getEventStatusBadge(settings, country, year){
       const phaseKey = `phases_${country}_${year}`;
-      const phases = (settings[phaseKey] || settings.phases || []).filter(p=>p.end);
+      const phases = (settings[phaseKey] || []).filter(p=>p.end);
       if(!phases.length) return '';
       const lastEnd = parseMYT(phases.sort((a,b)=>parseMYT(a.end)-parseMYT(b.end))[phases.length-1].end);
       const nowMs = Date.now() + 8*60*60*1000;
@@ -894,7 +910,7 @@ function renderOverview(){
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
           <span style="font-size:13px; font-weight:600;">${b.label}</span>
           ${statusBadge}
-          <select id="${countryId}" onchange="renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
+          <select id="${countryId}" onchange="overviewCountrySelection['${b.key}']=this.value; renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
         </div>
         <div class="brand-card"><span class="nodata-tag">No data for selected country</span></div>
       </div>`;
@@ -913,7 +929,7 @@ function renderOverview(){
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
         <span style="font-size:13px; font-weight:600;">${b.label}</span>
         ${statusBadge}
-        <select id="${countryId}" onchange="renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
+        <select id="${countryId}" onchange="overviewCountrySelection['${b.key}']=this.value; renderOverview()" style="font-size:12px; padding:3px 6px;">${countryOpts}</select>
       </div>
       <div class="overview-brand-row">
         <div class="brand-card">
@@ -1275,7 +1291,7 @@ function initBrandPage(brandKey){
     const compareCountry = document.getElementById('compareCountryFilter_'+brandKey).value;
     function filterRows(yr, ctry){ return allRows.filter(r=>getEventYear(r)===String(yr)&&(ctry==='all'||r['Country']===ctry)); }
     const viewRows = filterRows(year, country);
-    const cmpRows = compareYear ? filterRows(compareYear, compareCountry) : null;
+    const cmpRows = (compareYear && compareCountry) ? filterRows(compareYear, compareCountry) : null;
     try{ renderAudienceProfile(brandKey, viewRows, cmpRows, year, compareYear); }catch(e){ console.error('renderAudienceProfile',e); }
   }
   document.getElementById('audienceCatFilter_'+brandKey).addEventListener('change', reRenderAudience);
@@ -1296,7 +1312,7 @@ function renderBrandPage(brandKey){
   document.getElementById('statusLine_'+brandKey).textContent = "Live — " + data.rows.length + " records · updated " + mytBrand + " MYT";
 
   populateCountryFilter(document.getElementById('countryFilter_'+brandKey), data.rows);
-  populateCountryFilter(document.getElementById('compareCountryFilter_'+brandKey), data.rows);
+  populateCompareCountryFilter(document.getElementById('compareCountryFilter_'+brandKey), data.rows);
   populateYearFilters(brandKey);
 
   const s = data.settings;
@@ -1378,7 +1394,7 @@ function renderSRBody(brandKey){
     return rows.filter(r=>getEventYear(r)===String(yr) && (ctry==='all'||r['Country']===ctry));
   }
   const viewRows = filterRows(year, country);
-  const cmpRows = compareYear ? filterRows(compareYear, compareCountry) : null;
+  const cmpRows = (compareYear && compareCountry) ? filterRows(compareYear, compareCountry) : null;
   const showSettings = isLatestYear(brandKey, year);
   document.getElementById('settingsPanel_'+brandKey).style.display = showSettings ? '' : 'none';
   document.getElementById('paceChartPanel_'+brandKey).style.display = showSettings ? '' : 'none';
@@ -1386,7 +1402,7 @@ function renderSRBody(brandKey){
   // load country+year specific phase settings
   const allSettings = brandData[brandKey].settings || {};
   const phaseKey = `phases_${country}_${year}`;
-  const countryPhases = allSettings[phaseKey] || allSettings.phases || [];
+  const countryPhases = allSettings[phaseKey] || [];
   const settings = {...allSettings, phases: countryPhases};
 
   // load conversion rate for current country+year
