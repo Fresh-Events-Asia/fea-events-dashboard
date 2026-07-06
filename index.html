@@ -1444,27 +1444,31 @@ function renderSRBody(brandKey){
   // get last phase end date from settings
   const phasesWithEnd = (settings.phases||[]).filter(p=>p.end).sort((a,b)=>parseMYT(a.end)-parseMYT(b.end));
   const lastPhaseEnd = phasesWithEnd.length ? parseMYT(phasesWithEnd[phasesWithEnd.length-1].end) : null;
+  // "Registration close" = latest phase-end among phases that actually sell tickets (target > 0).
+  // This excludes buffer phases like "Save the date" / "Registration Closed" that have target 0.
+  const phasesWithPosTarget = (settings.phases||[]).filter(p=>p.end && (parseFloat(p.target)||0) > 0).sort((a,b)=>parseMYT(a.end)-parseMYT(b.end));
+  const registrationCloseEnd = phasesWithPosTarget.length ? parseMYT(phasesWithPosTarget[phasesWithPosTarget.length-1].end) : lastPhaseEnd;
 
-  // compute daysLeftVal from last phase end regardless of targets
+  // compute daysLeftVal from registration-close date (latest phase with target > 0)
   let daysLeftVal = null;
-  if(showSettings && lastPhaseEnd){
+  if(showSettings && registrationCloseEnd){
     const nowUTCms = Date.now() + 8*60*60*1000;
     const todayStr = new Date(nowUTCms).toISOString().slice(0,10);
     const todayMYTQuick = parseMYT(todayStr);
-    const dLeft = Math.ceil((lastPhaseEnd - todayMYTQuick)/(1000*60*60*24));
+    const dLeft = Math.ceil((registrationCloseEnd - todayMYTQuick)/(1000*60*60*24));
     daysLeftVal = dLeft > 0 ? dLeft : 0;
   }
 
-  // compute saleEnded for status badge (independent of showSettings)
-  if(lastPhaseEnd){
+  // compute saleEnded for status badge — sale ends at registration close (last target>0 phase)
+  if(registrationCloseEnd){
     const nowMs2 = Date.now() + 8*60*60*1000;
     const todayStr2 = new Date(nowMs2).toISOString().slice(0,10);
     const todayMYT2 = parseMYT(todayStr2);
-    saleEnded = todayMYT2 >= lastPhaseEnd;
+    saleEnded = todayMYT2 >= registrationCloseEnd;
   }
 
   let shortBy = 0;
-  if(showSettings && lastPhaseEnd){
+  if(showSettings && registrationCloseEnd){
     const phasesWithTarget = (settings.phases||[]).filter(p=>p.target);
     totalTarget = phasesWithTarget.reduce((a,p)=>a+(parseFloat(p.target)||0),0);
     if(totalTarget > 0){
@@ -1475,8 +1479,8 @@ function renderSRBody(brandKey){
       const nowMYTDate = new Date(nowMYTms);
       const todayYMD = nowMYTDate.toISOString().slice(0,10);
       const todayMYT = parseMYT(todayYMD);
-      saleEnded = todayMYT >= lastPhaseEnd;
-      const daysLeft = Math.ceil((lastPhaseEnd-todayMYT)/(1000*60*60*24));
+      saleEnded = todayMYT >= registrationCloseEnd;
+      const daysLeft = Math.ceil((registrationCloseEnd-todayMYT)/(1000*60*60*24));
       daysLeftVal = saleEnded ? 0 : daysLeftVal;
       if(curr.totalTicketsRegUnreg >= totalTarget){
         targetAchieved = true;
@@ -1495,7 +1499,7 @@ function renderSRBody(brandKey){
     const dates = viewRows.map(r=>parseMYT(r['Date cleaned (DD/MM/YYYY)'])).filter(d=>!isNaN(d));
     if(dates.length){
       const firstSaleDate = new Date(Math.min(...dates));
-      const endDate = (showSettings && lastPhaseEnd) ? lastPhaseEnd : new Date(Math.max(...dates));
+      const endDate = new Date(Math.max(...dates)); // Day 0 (first sale) → last available data date
       totalCampaignDays = Math.round((endDate - firstSaleDate)/(1000*60*60*24));
     }
   }
@@ -1527,7 +1531,7 @@ function renderSRBody(brandKey){
     }
     const progressCard = pctToTarget!==null ? `<div class="metric"><div class="label">% to target (reg+unreg)</div><div class="val">${pctToTarget.toFixed(1)}%</div><div style="background:var(--panel-2);border-radius:4px;height:8px;margin-top:8px;overflow:hidden;"><div style="height:100%;width:${pctToTarget}%;background:${pctToTarget>=100?'var(--good)':'var(--accent2)'};border-radius:4px;transition:width 0.4s;"></div></div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(curr.totalTicketsRegUnreg)} / ${fmtNum(totalTarget)}</div></div>` : '';
     const runRateCard = showSettings ? `<div class="metric"><div class="label">${saleEnded && !targetAchieved ? 'Final result' : 'Target daily tickets'}</div><div class="val" style="color:${targetAchieved?'var(--good)':saleEnded?'var(--bad)':'var(--text)'}">${targetAchieved ? '🎉 Target achieved!' : saleEnded ? `Short by ${fmtNum(shortBy)}` : runRateNeeded!==null ? fmtNum(runRateNeeded)+'/day' : 'set phase targets'}</div></div>` : '';
-    const daysLeftCard = (showSettings && !saleEnded && daysLeftVal !== null && daysLeftVal > 0) ? `<div class="metric"><div class="label">Days Left to Event / Registration Close</div><div class="val" style="color:${daysLeftVal<=7?'var(--bad)':daysLeftVal<=14?'var(--accent)':'var(--text)'}">${daysLeftVal} days</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtMYT(lastPhaseEnd)}</div></div>` : '';
+    const daysLeftCard = (showSettings && !saleEnded && daysLeftVal !== null && daysLeftVal > 0) ? `<div class="metric"><div class="label">Days Left to Registration Close</div><div class="val" style="color:${daysLeftVal<=7?'var(--bad)':daysLeftVal<=14?'var(--accent)':'var(--text)'}">${daysLeftVal} days</div><div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtMYT(registrationCloseEnd)}</div></div>` : '';
 
     // projected final tickets based on last 14 days trend
     let projectedCard = '';
@@ -1565,12 +1569,12 @@ function renderSRBody(brandKey){
 
       projectedCard = `<div class="metric"><div class="label">Projected (last 14 days trend)</div>
         <div class="val" style="color:${projColor}">${fmtNum(projected)} tickets</div>
-        <div style="font-size:13px;font-weight:600;margin-top:4px;">${fmtMoney(Math.round(projectedRev))}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:4px;">${fmtMoney(Math.round(projectedRev))} total revenue</div>
         <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fmtNum(Math.round(avgDaily14))}/day · ${fmtMoney(Math.round(avgDailyRev14))}/day avg${vsTarget}</div>
       </div>`;
     }
 
-    const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total ticket sales days (Day 0 → ${showSettings && lastPhaseEnd ? 'event date' : 'last data'})</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
+    const campaignDaysCard = totalCampaignDays!==null ? `<div class="metric"><div class="label">Total Ticket Sales Days</div><div class="val">${totalCampaignDays} days</div>${cmpCampaignDays!==null?`<div class="delta flat">${compareYear}: ${cmpCampaignDays} days (data range)</div>`:''}</div>` : '';
     // helper for manual input cards with pencil icon
     function manualCard(label, fieldKey, value, cmpValue, cmpYear, cmpCountry, fmt, disclaimer, unit, lastUpdated){
       const displayVal = value !== null ? fmt(value)+(unit||'') : '<span style="color:var(--text-dim);font-size:14px;">Not set</span>';
