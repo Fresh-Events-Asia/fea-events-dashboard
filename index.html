@@ -1493,13 +1493,21 @@ function renderSRBody(brandKey){
     }
   }
 
-  // total campaign days: first sale date → last phase end (if settings) or last data date
+  // total ticket sales days:
+  //  - on-going year (latest year, sale still open): scheduled selling window from phase settings
+  //      = registration close (latest phase-end with target>0)  −  first phase-start with target>0
+  //  - completed year (or no settings): actual Tab 1 sales span (first sale date → last data date)
   let totalCampaignDays = null;
-  if(viewRows.length > 0){
+  const posTargetStarts = phasesWithPosTarget.map(p=>parseMYT(p.start)).filter(d=>!isNaN(d));
+  const firstPosTargetStart = posTargetStarts.length ? new Date(Math.min(...posTargetStarts)) : null;
+  const ongoingYear = showSettings && registrationCloseEnd && !saleEnded;
+  if(ongoingYear && firstPosTargetStart){
+    totalCampaignDays = Math.round((registrationCloseEnd - firstPosTargetStart)/(1000*60*60*24));
+  } else if(viewRows.length > 0){
     const dates = viewRows.map(r=>parseMYT(r['Date cleaned (DD/MM/YYYY)'])).filter(d=>!isNaN(d));
     if(dates.length){
       const firstSaleDate = new Date(Math.min(...dates));
-      const endDate = new Date(Math.max(...dates)); // Day 0 (first sale) → last available data date
+      const endDate = new Date(Math.max(...dates)); // first sale → last available data date
       totalCampaignDays = Math.round((endDate - firstSaleDate)/(1000*60*60*24));
     }
   }
